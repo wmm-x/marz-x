@@ -164,8 +164,8 @@ const getInitialState = (inbound, defaultCert) => {
     tlsSessionResumption: tls?.enableSessionResumption || false,
     tlsAlpn: tls?.alpn?.join(',') || 'h2,http/1.1',
     // FIXED: Now uses defaultCert from CoreConfig
-    tlsCertFile: cert0.certificateFile || defaultCert?.certificateFile || '/root/Public_Key.crt',
-    tlsKeyFile: cert0.keyFile || defaultCert?.keyFile || '/root/Private_Key.key',
+    tlsCertFile: cert0.certificateFile || defaultCert?.certificateFile || '/var/lib/marzban/certs/fullchain.pem',
+    tlsKeyFile: cert0.keyFile || defaultCert?.keyFile || '/var/lib/marzban/certs/privkey.pem',
     tlsOcsp: cert0.ocspStapling || 3600,
     tlsUsage: cert0.usage || 'encipherment',
 
