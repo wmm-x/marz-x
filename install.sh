@@ -260,8 +260,12 @@ HOOK
     echo "WARNING: ./template/index.html not found; skipping template copy."
   fi
 
-  echo "--- Restarting Marzban ---"
-  marzban restart
+  echo "--- Restarting Marzban (detached, no log follow) ---"
+  if [ -f /opt/marzban/docker-compose.yml ]; then
+    docker compose -f /opt/marzban/docker-compose.yml up -d --force-recreate
+  else
+    echo "WARNING: /opt/marzban/docker-compose.yml not found; cannot restart Marzban."
+  fi
 
   echo "------------------------------------------------------------------"
   echo "✅ Marzban installation and configuration complete."
