@@ -109,7 +109,7 @@ const TlsSettings = ({ formData, setFormData }) => {
               value={formData.tlsCertFile} 
               onChange={e => setFormData({...formData, tlsCertFile: e.target.value})} 
               className="form-input" 
-              placeholder="/root/public.crt"
+              placeholder="/var/lib/marzban/certs/fullchain.pem"
             />
           </div>
           <div className="form-group">
@@ -119,7 +119,7 @@ const TlsSettings = ({ formData, setFormData }) => {
               value={formData.tlsKeyFile} 
               onChange={e => setFormData({...formData, tlsKeyFile: e.target.value})} 
               className="form-input" 
-              placeholder="/root/private.key"
+              placeholder="/var/lib/marzban/certs/privkey.pem"
             />
           </div>
           <div className="form-group">
