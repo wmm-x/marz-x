@@ -21,7 +21,7 @@ fi
 
 echo "--- Updating System & Installing Dependencies ---"
 apt update
-apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx curl jq openssl
+apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx curl jq openssl expect
 
 # 3. Create Dockerfiles (Includes OpenSSL Fix)
 echo "--- Creating Dockerfiles ---"
@@ -172,7 +172,6 @@ INSTALL_MARZBAN=${INSTALL_MARZBAN,,}  # to lowercase
 
 if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
   echo "--- Installing Marzban ---"
-  # Install Marzban
   sudo bash -c "$(curl -sL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban.sh)" @ install
 
   echo "--- Preparing certs for Marzban ---"
@@ -180,10 +179,11 @@ if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
   cp /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem /var/lib/marzban/certs/fullchain.pem
   cp /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem /var/lib/marzban/certs/privkey.pem
   chmod 600 /var/lib/marzban/certs/privkey.pem
-  chown -R marzban:marzban /var/lib/marzban/certs || true
+  if id -u marzban >/dev/null 2>&1; then
+    chown -R marzban:marzban /var/lib/marzban/certs || true
+  fi
 
   echo "--- Setting up cert renewal hook ---"
-  # Create a renew hook to recopy certs after renewal
   mkdir -p /etc/letsencrypt/renewal-hooks/post
   cat <<'HOOK' > /etc/letsencrypt/renewal-hooks/post/20-marzban-cert-sync.sh
 #!/bin/bash
@@ -194,7 +194,9 @@ if [ -f "$SRC/fullchain.pem" ] && [ -f "$SRC/privkey.pem" ]; then
   cp "$SRC/fullchain.pem" "$DEST/fullchain.pem"
   cp "$SRC/privkey.pem" "$DEST/privkey.pem"
   chmod 600 "$DEST/privkey.pem"
-  chown -R marzban:marzban "$DEST" || true
+  if id -u marzban >/dev/null 2>&1; then
+    chown -R marzban:marzban "$DEST" || true
+  fi
   systemctl restart marzban || true
 fi
 HOOK
@@ -203,11 +205,9 @@ HOOK
   echo "--- Configuring Marzban .env for SSL ---"
   MARZBAN_ENV="/opt/marzban/.env"
   if [ -f "$MARZBAN_ENV" ]; then
-    # Uncomment SSL lines
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_CERTFILE *=.*|UVICORN_SSL_CERTFILE="/var/lib/marzban/certs/fullchain.pem"|' "$MARZBAN_ENV"
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_KEYFILE *=.*|UVICORN_SSL_KEYFILE="/var/lib/marzban/certs/privkey.pem"|' "$MARZBAN_ENV"
 
-    # Ensure custom template settings
     if ! grep -q '^CUSTOM_TEMPLATES_DIRECTORY=' "$MARZBAN_ENV"; then
       echo 'CUSTOM_TEMPLATES_DIRECTORY="/var/lib/marzban/templates/"' >> "$MARZBAN_ENV"
     else
@@ -233,14 +233,17 @@ HOOK
   echo "--- Restarting Marzban ---"
   marzban restart
 
-  echo "--- Creating Marzban admin user ---"
+  echo "--- Creating Marzban admin user (non-interactive) ---"
   RANDOM_PASS=$(openssl rand -base64 16 | tr -d '\n')
-  {
-    echo "admin"
-    echo "n"
-    echo "$RANDOM_PASS"
-    echo "$RANDOM_PASS"
-  } | marzban cli admin create
+  expect <<'EOF'
+set timeout 20
+spawn marzban cli admin create
+expect "username:" { send "admin\r" }
+expect "Is sudo" { send "n\r" }
+expect "password:" { send "'"$RANDOM_PASS"'\r" }
+expect "Repeat for confirmation:" { send "'"$RANDOM_PASS"'\r" }
+expect eof
+EOF
 
   echo "------------------------------------------------------------------"
   echo "✅ Marzban installation and configuration complete."
