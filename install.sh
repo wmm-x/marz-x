@@ -162,9 +162,10 @@ ufw allow 80/tcp # Keep 80 open for Certbot renewals
 systemctl reload nginx
 
 echo "------------------------------------------------------------------"
-echo "✅ Base Installation Complete!"
-echo "Dashboard is live at: https://$DOMAIN_NAME:$TARGET_PORT"
-echo "Login: admin@admin.com / admin123"
+  echo "✅ MARZ-X Dashboard Installation Complete!"
+  echo "Dashboard is live at: https://$DOMAIN_NAME:$TARGET_PORT"
+  echo "Username: admin@admin.com"
+  echo "Password: admin123"
 echo "------------------------------------------------------------------"
 
 # 10. Prompt for Marzban installation
@@ -257,7 +258,11 @@ HOOK
   echo "✅ Marzban installation and configuration complete."
   echo "Admin username: $MARZBAN_ADMIN_USER"
   echo "Admin password: $MARZBAN_SUDO_PASS"
-  echo "These are set in /opt/marzban/.env as SUDO_USERNAME/SUDO_PASSWORD."
+  echo "------------------------------------------------------------------"
+  echo "✅ MARZ-X Dashboard Installation Complete!"
+  echo "Dashboard is live at: https://$DOMAIN_NAME:$TARGET_PORT"
+  echo "Username: admin@admin.com"
+  echo "Password: admin123"
   echo "------------------------------------------------------------------"
 else
   echo "Skipped Marzban installation."
