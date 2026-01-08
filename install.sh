@@ -172,15 +172,16 @@ read -p "Do you want to install Marzban on this server? (y/N): " INSTALL_MARZBAN
 INSTALL_MARZBAN=${INSTALL_MARZBAN,,}  # to lowercase
 
 if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
-  echo "--- Downloading and patching Marzban installer (detach compose) ---"
+  echo "--- Downloading and patching Marzban installer (detach & no log follow) ---"
   TMP_MARZBAN_SCRIPT="/tmp/marzban.sh"
   curl -sL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban.sh -o "$TMP_MARZBAN_SCRIPT"
   chmod +x "$TMP_MARZBAN_SCRIPT"
-  # Force detached mode for any compose up commands to avoid blocking/log tailing
-  sed -i 's/docker compose up -d/docker compose up -d/g' "$TMP_MARZBAN_SCRIPT"
-  sed -i 's/docker compose up/docker compose up -d/g' "$TMP_MARZBAN_SCRIPT"
-  sed -i 's/docker-compose up -d/docker-compose up -d/g' "$TMP_MARZBAN_SCRIPT"
-  sed -i 's/docker-compose up/docker-compose up -d/g' "$TMP_MARZBAN_SCRIPT"
+  # Force detached mode on any compose up
+  sed -i -E 's/docker compose up([^a-zA-Z0-9_-]|$)/docker compose up -d\1/g' "$TMP_MARZBAN_SCRIPT"
+  sed -i -E 's/docker-compose up([^a-zA-Z0-9_-]|$)/docker-compose up -d\1/g' "$TMP_MARZBAN_SCRIPT"
+  # Remove log-follow commands that block
+  sed -i '/docker compose logs/d' "$TMP_MARZBAN_SCRIPT"
+  sed -i '/docker-compose logs/d' "$TMP_MARZBAN_SCRIPT"
 
   echo "--- Installing Marzban ---"
   sudo bash "$TMP_MARZBAN_SCRIPT" @ install
