@@ -186,6 +186,29 @@ if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
   echo "--- Installing Marzban ---"
   sudo bash "$TMP_MARZBAN_SCRIPT" @ install
 
+  echo "--- Detecting Marzban install directory ---"
+  MARZBAN_DIR=""
+  # Common candidates first
+  for candidate in /opt/marzban /var/lib/marzban /root/marzban /srv/marzban /etc/marzban; do
+    if [ -f "$candidate/docker-compose.yml" ]; then
+      MARZBAN_DIR="$candidate"
+      break
+    fi
+  done
+  # Fallback: search shallowly
+  if [ -z "$MARZBAN_DIR" ]; then
+    FOUND=$(find / -maxdepth 4 -type f -name "docker-compose.yml" 2>/dev/null | grep -m1 marzban || true)
+    if [ -n "$FOUND" ]; then
+      MARZBAN_DIR=$(dirname "$FOUND")
+    fi
+  fi
+
+  if [ -z "$MARZBAN_DIR" ]; then
+    echo "ERROR: Could not locate Marzban docker-compose.yml after install. Please check the installer output."
+  else
+    echo "Marzban directory detected at: $MARZBAN_DIR"
+  fi
+
   echo "--- Preparing certs for Marzban ---"
   mkdir -p /var/lib/marzban/certs
   cp /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem /var/lib/marzban/certs/fullchain.pem
@@ -215,9 +238,9 @@ HOOK
   chmod +x /etc/letsencrypt/renewal-hooks/post/20-marzban-cert-sync.sh
 
   echo "--- Configuring Marzban .env for SSL and admin ---"
-  MARZBAN_ENV="/opt/marzban/.env"
   MARZBAN_SUDO_PASS=$(openssl rand -base64 16 | tr -d '\n')
-  if [ -f "$MARZBAN_ENV" ]; then
+  if [ -n "$MARZBAN_DIR" ] && [ -f "$MARZBAN_DIR/.env" ]; then
+    MARZBAN_ENV="$MARZBAN_DIR/.env"
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_CERTFILE *=.*|UVICORN_SSL_CERTFILE="/var/lib/marzban/certs/fullchain.pem"|' "$MARZBAN_ENV"
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_KEYFILE *=.*|UVICORN_SSL_KEYFILE="/var/lib/marzban/certs/privkey.pem"|' "$MARZBAN_ENV"
 
@@ -249,7 +272,7 @@ HOOK
       echo 'SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"' >> "$MARZBAN_ENV"
     fi
   else
-    echo "WARNING: $MARZBAN_ENV not found; cannot configure Marzban SSL/admin."
+    echo "WARNING: Marzban .env not found; skipped SSL/admin config."
   fi
 
   echo "--- Deploying subscription template ---"
@@ -261,17 +284,17 @@ HOOK
   fi
 
   echo "--- Restarting Marzban (detached, no log follow) ---"
-  if [ -f /opt/marzban/docker-compose.yml ]; then
-    docker compose -f /opt/marzban/docker-compose.yml up -d --force-recreate
+  if [ -n "$MARZBAN_DIR" ] && [ -f "$MARZBAN_DIR/docker-compose.yml" ]; then
+    docker compose -f "$MARZBAN_DIR/docker-compose.yml" up -d --force-recreate
   else
-    echo "WARNING: /opt/marzban/docker-compose.yml not found; cannot restart Marzban."
+    echo "WARNING: Marzban docker-compose.yml not found; cannot restart Marzban."
   fi
 
   echo "------------------------------------------------------------------"
   echo "✅ Marzban installation and configuration complete."
   echo "Admin username: $MARZBAN_ADMIN_USER"
   echo "Admin password: $MARZBAN_SUDO_PASS"
-  echo "These are set in /opt/marzban/.env as SUDO_USERNAME/SUDO_PASSWORD."
+  echo "These are set in the Marzban .env (when detected) as SUDO_USERNAME/SUDO_PASSWORD."
   echo "------------------------------------------------------------------"
 else
   echo "Skipped Marzban installation."
