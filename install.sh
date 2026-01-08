@@ -203,12 +203,14 @@ fi
 HOOK
   chmod +x /etc/letsencrypt/renewal-hooks/post/20-marzban-cert-sync.sh
 
-  echo "--- Configuring Marzban .env for SSL ---"
+  echo "--- Configuring Marzban .env for SSL and admin ---"
   MARZBAN_ENV="/opt/marzban/.env"
+  MARZBAN_SUDO_PASS=$(openssl rand -base64 16 | tr -d '\n')
   if [ -f "$MARZBAN_ENV" ]; then
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_CERTFILE *=.*|UVICORN_SSL_CERTFILE="/var/lib/marzban/certs/fullchain.pem"|' "$MARZBAN_ENV"
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_KEYFILE *=.*|UVICORN_SSL_KEYFILE="/var/lib/marzban/certs/privkey.pem"|' "$MARZBAN_ENV"
 
+    # Custom templates
     if ! grep -q '^CUSTOM_TEMPLATES_DIRECTORY=' "$MARZBAN_ENV"; then
       echo 'CUSTOM_TEMPLATES_DIRECTORY="/var/lib/marzban/templates/"' >> "$MARZBAN_ENV"
     else
@@ -219,8 +221,25 @@ HOOK
     else
       sed -i 's|^SUBSCRIPTION_PAGE_TEMPLATE=.*|SUBSCRIPTION_PAGE_TEMPLATE="subscription/index.html"|' "$MARZBAN_ENV"
     fi
+
+    # SUDO admin credentials (uncomment or add)
+    if grep -q '^[[:space:]]*#\s*SUDO_USERNAME' "$MARZBAN_ENV"; then
+      sed -i 's|^[[:space:]]*#\s*SUDO_USERNAME *=.*|SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"|' "$MARZBAN_ENV"
+    elif grep -q '^SUDO_USERNAME' "$MARZBAN_ENV"; then
+      sed -i 's|^SUDO_USERNAME *=.*|SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"|' "$MARZBAN_ENV"
+    else
+      echo 'SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"' >> "$MARZBAN_ENV"
+    fi
+
+    if grep -q '^[[:space:]]*#\s*SUDO_PASSWORD' "$MARZBAN_ENV"; then
+      sed -i 's|^[[:space:]]*#\s*SUDO_PASSWORD *=.*|SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"|' "$MARZBAN_ENV"
+    elif grep -q '^SUDO_PASSWORD' "$MARZBAN_ENV"; then
+      sed -i 's|^SUDO_PASSWORD *=.*|SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"|' "$MARZBAN_ENV"
+    else
+      echo 'SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"' >> "$MARZBAN_ENV"
+    fi
   else
-    echo "WARNING: $MARZBAN_ENV not found; cannot configure Marzban SSL."
+    echo "WARNING: $MARZBAN_ENV not found; cannot configure Marzban SSL/admin."
   fi
 
   echo "--- Deploying subscription template ---"
@@ -234,22 +253,11 @@ HOOK
   echo "--- Restarting Marzban ---"
   marzban restart
 
-  echo "--- Creating Marzban admin user (non-interactive) ---"
-  RANDOM_PASS=$(openssl rand -base64 16 | tr -d '\n')
-  expect <<'EOF'
-set timeout 30
-spawn docker compose exec -T marzban marzban cli admin create
-expect -re "(?i)username" { send "'"$MARZBAN_ADMIN_USER"'\r" }
-expect -re "(?i)is sudo" { send "n\r" }
-expect -re "(?i)password" { send "'"$RANDOM_PASS"'\r" }
-expect -re "(?i)repeat" { send "'"$RANDOM_PASS"'\r" }
-expect eof
-EOF
-
   echo "------------------------------------------------------------------"
   echo "✅ Marzban installation and configuration complete."
   echo "Admin username: $MARZBAN_ADMIN_USER"
-  echo "Admin password: $RANDOM_PASS"
+  echo "Admin password: $MARZBAN_SUDO_PASS"
+  echo "These are set in /opt/marzban/.env as SUDO_USERNAME/SUDO_PASSWORD."
   echo "------------------------------------------------------------------"
 else
   echo "Skipped Marzban installation."
