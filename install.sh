@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # --- Configuration ---
-APP_PORT=3000          # Internal Docker Port for Frontend
-TARGET_PORT=6104       # EXTERNAL Port for Dashboard (HTTPS)
-ADMIN_EMAIL="admin@admin.com" # Default email for Let's Encrypt
-MARZBAN_ADMIN_USER="admin"
+APP_PORT=3000                 # Internal Docker Port for Frontend
+TARGET_PORT=6104              # EXTERNAL Port for Dashboard (HTTPS)
+ADMIN_USERNAME="admin"        # Fixed username for Base + Marzban
+ADMIN_EMAIL="admin@admin.com" # Email for Base (and display)
+MARZBAN_ADMIN_USER="$ADMIN_USERNAME" # Same username for Marzban
 # ---------------------
 
 # 1. Check for Root
@@ -77,6 +78,7 @@ DOCKERFILE
 echo "--- Generating Production .env File ---"
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
+ADMIN_PASSWORD=$(openssl rand -base64 16 | tr -d '\n') # Random, shared password
 
 cat <<ENVFILE > .env
 PORT=5000
@@ -85,10 +87,10 @@ DATABASE_URL="file:/app/data/prod.db"
 JWT_SECRET="${JWT_SECRET}"
 ENCRYPTION_KEY="${ENCRYPTION_KEY}"
 ADMIN_EMAIL="${ADMIN_EMAIL}"
-ADMIN_PASSWORD="admin123"
+ADMIN_PASSWORD="${ADMIN_PASSWORD}"
 ADMIN_NAME="Administrator"
-MARZBAN_ADMIN="MarzbanAdminx"
-MARZBAN_ADMIN_PASS="G\$2WuaYJW@THP!9"
+MARZBAN_ADMIN="${MARZBAN_ADMIN_USER}"
+MARZBAN_ADMIN_PASS="${ADMIN_PASSWORD}"
 ENVFILE
 
 # 5. Create docker-compose.yml
@@ -164,7 +166,7 @@ systemctl reload nginx
 echo "------------------------------------------------------------------"
 echo "✅ Base Installation Complete!"
 echo "Dashboard is live at: https://$DOMAIN_NAME:$TARGET_PORT"
-echo "Login: admin@admin.com / admin123"
+echo "Base admin (dashboard): ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}"
 echo "------------------------------------------------------------------"
 
 # 10. Prompt for Marzban installation
@@ -205,7 +207,6 @@ HOOK
 
   echo "--- Configuring Marzban .env for SSL and admin ---"
   MARZBAN_ENV="/opt/marzban/.env"
-  MARZBAN_SUDO_PASS=$(openssl rand -base64 16 | tr -d '\n')
   if [ -f "$MARZBAN_ENV" ]; then
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_CERTFILE *=.*|UVICORN_SSL_CERTFILE="/var/lib/marzban/certs/fullchain.pem"|' "$MARZBAN_ENV"
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_KEYFILE *=.*|UVICORN_SSL_KEYFILE="/var/lib/marzban/certs/privkey.pem"|' "$MARZBAN_ENV"
@@ -222,7 +223,7 @@ HOOK
       sed -i 's|^SUBSCRIPTION_PAGE_TEMPLATE=.*|SUBSCRIPTION_PAGE_TEMPLATE="subscription/index.html"|' "$MARZBAN_ENV"
     fi
 
-    # SUDO admin credentials (uncomment or add)
+    # SUDO admin credentials (shared with base)
     if grep -q '^[[:space:]]*#\s*SUDO_USERNAME' "$MARZBAN_ENV"; then
       sed -i 's|^[[:space:]]*#\s*SUDO_USERNAME *=.*|SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"|' "$MARZBAN_ENV"
     elif grep -q '^SUDO_USERNAME' "$MARZBAN_ENV"; then
@@ -232,11 +233,11 @@ HOOK
     fi
 
     if grep -q '^[[:space:]]*#\s*SUDO_PASSWORD' "$MARZBAN_ENV"; then
-      sed -i 's|^[[:space:]]*#\s*SUDO_PASSWORD *=.*|SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"|' "$MARZBAN_ENV"
+      sed -i 's|^[[:space:]]*#\s*SUDO_PASSWORD *=.*|SUDO_PASSWORD="'"$ADMIN_PASSWORD"'"|' "$MARZBAN_ENV"
     elif grep -q '^SUDO_PASSWORD' "$MARZBAN_ENV"; then
-      sed -i 's|^SUDO_PASSWORD *=.*|SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"|' "$MARZBAN_ENV"
+      sed -i 's|^SUDO_PASSWORD *=.*|SUDO_PASSWORD="'"$ADMIN_PASSWORD"'"|' "$MARZBAN_ENV"
     else
-      echo 'SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"' >> "$MARZBAN_ENV"
+      echo 'SUDO_PASSWORD="'"$ADMIN_PASSWORD"'"' >> "$MARZBAN_ENV"
     fi
   else
     echo "WARNING: $MARZBAN_ENV not found; cannot configure Marzban SSL/admin."
@@ -255,10 +256,11 @@ HOOK
 
   echo "------------------------------------------------------------------"
   echo "✅ Marzban installation and configuration complete."
-  echo "Admin username: $MARZBAN_ADMIN_USER"
-  echo "Admin password: $MARZBAN_SUDO_PASS"
-  echo "These are set in /opt/marzban/.env as SUDO_USERNAME/SUDO_PASSWORD."
+  echo "Marzban admin (SUDO): ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}"
+  echo "Base admin (shared):  ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}"
+  echo "These are synced and stored in /opt/marzban/.env (SUDO_USERNAME/SUDO_PASSWORD) and .env (ADMIN_EMAIL/ADMIN_PASSWORD)."
   echo "------------------------------------------------------------------"
 else
   echo "Skipped Marzban installation."
+  echo "Base admin (dashboard): ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}"
 fi
