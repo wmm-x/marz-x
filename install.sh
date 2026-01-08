@@ -22,7 +22,7 @@ fi
 
 echo "--- Updating System & Installing Dependencies ---"
 apt update
-apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx curl jq openssl expect
+apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx curl jq openssl
 
 # 3. Create Dockerfiles (Includes OpenSSL Fix)
 echo "--- Creating Dockerfiles ---"
@@ -172,8 +172,18 @@ read -p "Do you want to install Marzban on this server? (y/N): " INSTALL_MARZBAN
 INSTALL_MARZBAN=${INSTALL_MARZBAN,,}  # to lowercase
 
 if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
+  echo "--- Downloading and patching Marzban installer (detach compose) ---"
+  TMP_MARZBAN_SCRIPT="/tmp/marzban.sh"
+  curl -sL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban.sh -o "$TMP_MARZBAN_SCRIPT"
+  chmod +x "$TMP_MARZBAN_SCRIPT"
+  # Force detached mode for any compose up commands to avoid blocking/log tailing
+  sed -i 's/docker compose up -d/docker compose up -d/g' "$TMP_MARZBAN_SCRIPT"
+  sed -i 's/docker compose up/docker compose up -d/g' "$TMP_MARZBAN_SCRIPT"
+  sed -i 's/docker-compose up -d/docker-compose up -d/g' "$TMP_MARZBAN_SCRIPT"
+  sed -i 's/docker-compose up/docker-compose up -d/g' "$TMP_MARZBAN_SCRIPT"
+
   echo "--- Installing Marzban ---"
-  sudo bash -c "$(curl -sL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban.sh)" @ install
+  sudo bash "$TMP_MARZBAN_SCRIPT" @ install
 
   echo "--- Preparing certs for Marzban ---"
   mkdir -p /var/lib/marzban/certs
@@ -210,7 +220,6 @@ HOOK
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_CERTFILE *=.*|UVICORN_SSL_CERTFILE="/var/lib/marzban/certs/fullchain.pem"|' "$MARZBAN_ENV"
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_KEYFILE *=.*|UVICORN_SSL_KEYFILE="/var/lib/marzban/certs/privkey.pem"|' "$MARZBAN_ENV"
 
-    # Custom templates
     if ! grep -q '^CUSTOM_TEMPLATES_DIRECTORY=' "$MARZBAN_ENV"; then
       echo 'CUSTOM_TEMPLATES_DIRECTORY="/var/lib/marzban/templates/"' >> "$MARZBAN_ENV"
     else
