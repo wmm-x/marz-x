@@ -7,41 +7,10 @@ ADMIN_EMAIL="admin@admin.com" # Default email for Let's Encrypt
 MARZBAN_ADMIN_USER="admin"
 # ---------------------
 
-set -e
-
-detect_marzban_dir() {
-  local candidates=(
-    "/opt/marzban"
-    "/var/lib/marzban"
-    "/root/marzban"
-    "/srv/marzban"
-    "/etc/marzban"
-    "/opt/marzban-docker"
-  )
-  for d in "${candidates[@]}"; do
-    for f in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
-      if [ -f "$d/$f" ]; then
-        echo "$d"
-        return
-      fi
-    done
-  done
-  # Bounded search for compose files mentioning marzban
-  local found
-  found=$(find / -maxdepth 6 \( -name "docker-compose.yml" -o -name "docker-compose.yaml" -o -name "compose.yml" -o -name "compose.yaml" \) -type f 2>/dev/null | head -n 80)
-  for f in $found; do
-    if grep -qi "marzban" "$f"; then
-      dirname "$f"
-      return
-    fi
-  done
-  echo ""
-}
-
 # 1. Check for Root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root (use sudo)"
-  exit 1
+  exit
 fi
 
 # 2. Ask for Domain Name
@@ -217,14 +186,6 @@ if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
   echo "--- Installing Marzban ---"
   sudo bash "$TMP_MARZBAN_SCRIPT" @ install
 
-  echo "--- Detecting Marzban install directory ---"
-  MARZBAN_DIR=$(detect_marzban_dir)
-  if [ -z "$MARZBAN_DIR" ]; then
-    echo "ERROR: Could not locate Marzban docker-compose after install. Please check installer output."
-  else
-    echo "Marzban directory detected at: $MARZBAN_DIR"
-  fi
-
   echo "--- Preparing certs for Marzban ---"
   mkdir -p /var/lib/marzban/certs
   cp /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem /var/lib/marzban/certs/fullchain.pem
@@ -254,9 +215,9 @@ HOOK
   chmod +x /etc/letsencrypt/renewal-hooks/post/20-marzban-cert-sync.sh
 
   echo "--- Configuring Marzban .env for SSL and admin ---"
+  MARZBAN_ENV="/opt/marzban/.env"
   MARZBAN_SUDO_PASS=$(openssl rand -base64 16 | tr -d '\n')
-  if [ -n "$MARZBAN_DIR" ] && [ -f "$MARZBAN_DIR/.env" ]; then
-    MARZBAN_ENV="$MARZBAN_DIR/.env"
+  if [ -f "$MARZBAN_ENV" ]; then
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_CERTFILE *=.*|UVICORN_SSL_CERTFILE="/var/lib/marzban/certs/fullchain.pem"|' "$MARZBAN_ENV"
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_KEYFILE *=.*|UVICORN_SSL_KEYFILE="/var/lib/marzban/certs/privkey.pem"|' "$MARZBAN_ENV"
 
@@ -288,7 +249,7 @@ HOOK
       echo 'SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"' >> "$MARZBAN_ENV"
     fi
   else
-    echo "WARNING: Marzban .env not found; skipped SSL/admin config."
+    echo "WARNING: $MARZBAN_ENV not found; cannot configure Marzban SSL/admin."
   fi
 
   echo "--- Deploying subscription template ---"
@@ -299,26 +260,14 @@ HOOK
     echo "WARNING: ./template/index.html not found; skipping template copy."
   fi
 
-  echo "--- Restarting Marzban (detached, no log follow) ---"
-  if [ -n "$MARZBAN_DIR" ]; then
-    if [ -f "$MARZBAN_DIR/docker-compose.yml" ] || [ -f "$MARZBAN_DIR/docker-compose.yaml" ] || [ -f "$MARZBAN_DIR/compose.yml" ] || [ -f "$MARZBAN_DIR/compose.yaml" ]; then
-      COMPOSE_FILE=""
-      for f in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
-        if [ -f "$MARZBAN_DIR/$f" ]; then COMPOSE_FILE="$MARZBAN_DIR/$f"; break; fi
-      done
-      docker compose -f "$COMPOSE_FILE" up -d --force-recreate --remove-orphans
-    else
-      echo "WARNING: Marzban compose file not found; cannot restart Marzban."
-    fi
-  else
-    echo "WARNING: Marzban directory not detected; cannot restart Marzban."
-  fi
+  echo "--- Restarting Marzban ---"
+  marzban restart
 
   echo "------------------------------------------------------------------"
   echo "✅ Marzban installation and configuration complete."
   echo "Admin username: $MARZBAN_ADMIN_USER"
   echo "Admin password: $MARZBAN_SUDO_PASS"
-  echo "These are set in the Marzban .env (when detected) as SUDO_USERNAME/SUDO_PASSWORD."
+  echo "These are set in /opt/marzban/.env as SUDO_USERNAME/SUDO_PASSWORD."
   echo "------------------------------------------------------------------"
 else
   echo "Skipped Marzban installation."
