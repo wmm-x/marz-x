@@ -4,6 +4,7 @@
 APP_PORT=3000          # Internal Docker Port for Frontend
 TARGET_PORT=6104       # EXTERNAL Port for Dashboard (HTTPS)
 ADMIN_EMAIL="admin@admin.com" # Default email for Let's Encrypt
+MARZBAN_ADMIN_USER="admin"
 # ---------------------
 
 # 1. Check for Root
@@ -236,18 +237,18 @@ HOOK
   echo "--- Creating Marzban admin user (non-interactive) ---"
   RANDOM_PASS=$(openssl rand -base64 16 | tr -d '\n')
   expect <<'EOF'
-set timeout 20
-spawn marzban cli admin create
-expect "username:" { send "admin\r" }
-expect "Is sudo" { send "n\r" }
-expect "password:" { send "'"$RANDOM_PASS"'\r" }
-expect "Repeat for confirmation:" { send "'"$RANDOM_PASS"'\r" }
+set timeout 30
+spawn docker compose exec -T marzban marzban cli admin create
+expect -re "(?i)username" { send "'"$MARZBAN_ADMIN_USER"'\r" }
+expect -re "(?i)is sudo" { send "n\r" }
+expect -re "(?i)password" { send "'"$RANDOM_PASS"'\r" }
+expect -re "(?i)repeat" { send "'"$RANDOM_PASS"'\r" }
 expect eof
 EOF
 
   echo "------------------------------------------------------------------"
   echo "✅ Marzban installation and configuration complete."
-  echo "Admin username: admin"
+  echo "Admin username: $MARZBAN_ADMIN_USER"
   echo "Admin password: $RANDOM_PASS"
   echo "------------------------------------------------------------------"
 else
