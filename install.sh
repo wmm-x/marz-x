@@ -7,10 +7,41 @@ ADMIN_EMAIL="admin@admin.com" # Default email for Let's Encrypt
 MARZBAN_ADMIN_USER="admin"
 # ---------------------
 
+set -e
+
+detect_marzban_dir() {
+  local candidates=(
+    "/opt/marzban"
+    "/var/lib/marzban"
+    "/root/marzban"
+    "/srv/marzban"
+    "/etc/marzban"
+    "/opt/marzban-docker"
+  )
+  for d in "${candidates[@]}"; do
+    for f in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
+      if [ -f "$d/$f" ]; then
+        echo "$d"
+        return
+      fi
+    done
+  done
+  # Bounded search for compose files mentioning marzban
+  local found
+  found=$(find / -maxdepth 6 \( -name "docker-compose.yml" -o -name "docker-compose.yaml" -o -name "compose.yml" -o -name "compose.yaml" \) -type f 2>/dev/null | head -n 80)
+  for f in $found; do
+    if grep -qi "marzban" "$f"; then
+      dirname "$f"
+      return
+    fi
+  done
+  echo ""
+}
+
 # 1. Check for Root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root (use sudo)"
-  exit
+  exit 1
 fi
 
 # 2. Ask for Domain Name
@@ -187,24 +218,9 @@ if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
   sudo bash "$TMP_MARZBAN_SCRIPT" @ install
 
   echo "--- Detecting Marzban install directory ---"
-  MARZBAN_DIR=""
-  # Common candidates first
-  for candidate in /opt/marzban /var/lib/marzban /root/marzban /srv/marzban /etc/marzban; do
-    if [ -f "$candidate/docker-compose.yml" ]; then
-      MARZBAN_DIR="$candidate"
-      break
-    fi
-  done
-  # Fallback: search shallowly
+  MARZBAN_DIR=$(detect_marzban_dir)
   if [ -z "$MARZBAN_DIR" ]; then
-    FOUND=$(find / -maxdepth 4 -type f -name "docker-compose.yml" 2>/dev/null | grep -m1 marzban || true)
-    if [ -n "$FOUND" ]; then
-      MARZBAN_DIR=$(dirname "$FOUND")
-    fi
-  fi
-
-  if [ -z "$MARZBAN_DIR" ]; then
-    echo "ERROR: Could not locate Marzban docker-compose.yml after install. Please check the installer output."
+    echo "ERROR: Could not locate Marzban docker-compose after install. Please check installer output."
   else
     echo "Marzban directory detected at: $MARZBAN_DIR"
   fi
@@ -284,10 +300,18 @@ HOOK
   fi
 
   echo "--- Restarting Marzban (detached, no log follow) ---"
-  if [ -n "$MARZBAN_DIR" ] && [ -f "$MARZBAN_DIR/docker-compose.yml" ]; then
-    docker compose -f "$MARZBAN_DIR/docker-compose.yml" up -d --force-recreate
+  if [ -n "$MARZBAN_DIR" ]; then
+    if [ -f "$MARZBAN_DIR/docker-compose.yml" ] || [ -f "$MARZBAN_DIR/docker-compose.yaml" ] || [ -f "$MARZBAN_DIR/compose.yml" ] || [ -f "$MARZBAN_DIR/compose.yaml" ]; then
+      COMPOSE_FILE=""
+      for f in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
+        if [ -f "$MARZBAN_DIR/$f" ]; then COMPOSE_FILE="$MARZBAN_DIR/$f"; break; fi
+      done
+      docker compose -f "$COMPOSE_FILE" up -d --force-recreate --remove-orphans
+    else
+      echo "WARNING: Marzban compose file not found; cannot restart Marzban."
+    fi
   else
-    echo "WARNING: Marzban docker-compose.yml not found; cannot restart Marzban."
+    echo "WARNING: Marzban directory not detected; cannot restart Marzban."
   fi
 
   echo "------------------------------------------------------------------"
