@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # --- Configuration ---
-APP_PORT=3000  # Port where Docker will expose the frontend
+APP_PORT=3000          # Internal Docker Port
+TARGET_PORT=6104       # EXTERNAL Port for Dashboard (HTTPS)
+ADMIN_EMAIL="admin@admin.com" # Required for SSL
 # ---------------------
 
 # 1. Check for Root
@@ -18,46 +20,75 @@ if [ -z "$DOMAIN_NAME" ]; then
 fi
 
 echo "--- Updating System & Installing Dependencies ---"
-apt update && apt upgrade -y
+apt update
 apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx
 
-# 3. Generate Secure .env File
-echo "--- Generating Production .env File ---"
+# 3. Create Missing Dockerfiles (Fixes "no such file" error)
+echo "--- Creating Dockerfiles ---"
 
-# Generate random keys
+# Backend Dockerfile
+cat <<EOF > backend/Dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --production
+COPY . .
+RUN npx prisma generate
+EXPOSE 5000
+CMD ["npm", "start"]
+EOF
+
+# Frontend Dockerfile
+cat <<EOF > frontend/Dockerfile
+FROM node:18-alpine as build
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+RUN echo 'server { \\
+    listen 80; \\
+    location / { \\
+        root /usr/share/nginx/html; \\
+        index index.html index.htm; \\
+        try_files \$uri \$uri/ /index.html; \\
+    } \\
+    location /api { \\
+        proxy_pass http://backend:5000; \\
+        proxy_http_version 1.1; \\
+        proxy_set_header Upgrade \$http_upgrade; \\
+        proxy_set_header Connection "upgrade"; \\
+        proxy_set_header Host \$host; \\
+    } \\
+}' > /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+EOF
+
+# 4. Generate Production .env File
+echo "--- Generating Production .env File ---"
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 
 cat <<EOF > .env
-# Server
 PORT=5000
 NODE_ENV=production
-
-# Database (Saved in Docker Volume)
 DATABASE_URL="file:/app/data/prod.db"
-
-# Security Keys (Auto-Generated)
 JWT_SECRET="${JWT_SECRET}"
 ENCRYPTION_KEY="${ENCRYPTION_KEY}"
-
-# Default Admin Credentials
-ADMIN_EMAIL="admin@admin.com"
+ADMIN_EMAIL="${ADMIN_EMAIL}"
 ADMIN_PASSWORD="admin123"
 ADMIN_NAME="Administrator"
-
-# Marzban Credentials (Backend internal use)
 MARZBAN_ADMIN="MarzbanAdminx"
 MARZBAN_ADMIN_PASS="G\$2WuaYJW@THP!9"
 EOF
 
-echo ".env file created with secure keys."
-
-# 4. Create/Update docker-compose.yml for Production
-# We map the frontend to 127.0.0.1:3000 so it's not exposed directly, only via Nginx
+# 5. Create docker-compose.yml
 echo "--- Configuring Docker Compose ---"
 cat <<EOF > docker-compose.yml
-version: '3.8'
-
 services:
   backend:
     build: ./backend
@@ -82,12 +113,12 @@ volumes:
   marzban_data:
 EOF
 
-# 5. Build and Start Docker Containers
+# 6. Build and Start Docker
 echo "--- Building and Starting Application ---"
-docker compose down  # Stop any existing containers
+docker compose down
 docker compose up -d --build
 
-# 6. Configure Nginx Reverse Proxy
+# 7. Configure Nginx (Pre-SSL)
 echo "--- Configuring Nginx ---"
 cat <<EOF > /etc/nginx/sites-available/$DOMAIN_NAME
 server {
@@ -100,35 +131,32 @@ server {
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    }
-
-    # Proxy API requests to backend
-    location /api {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
     }
 }
 EOF
 
-# Enable Site
 ln -sf /etc/nginx/sites-available/$DOMAIN_NAME /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default  # Remove default nginx page if it exists
+rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 
-# 7. Setup SSL with Certbot
+# 8. Setup SSL & Switch to Port 6104
 echo "--- Setting up SSL (HTTPS) ---"
+# Get Cert on standard port 80/443 first
 certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $ADMIN_EMAIL --redirect
+
+# Modify Nginx to listen on 6104 instead of 443
+echo "--- Moving SSL to Port $TARGET_PORT ---"
+sed -i "s/listen 443 ssl/listen $TARGET_PORT ssl/g" /etc/nginx/sites-available/$DOMAIN_NAME
+
+# Open Firewall for new port
+ufw allow $TARGET_PORT/tcp
+ufw allow 80/tcp # Keep 80 open for Certbot renewals
+
+systemctl reload nginx
 
 echo "------------------------------------------------------------------"
 echo "✅ Installation Complete!"
 echo "------------------------------------------------------------------"
-echo "Dashboard is live at: https://$DOMAIN_NAME"
+echo "Dashboard is live at: https://$DOMAIN_NAME:$TARGET_PORT"
 echo "Login: admin@admin.com / admin123"
 echo "------------------------------------------------------------------"
