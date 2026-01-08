@@ -163,11 +163,13 @@ ufw allow $TARGET_PORT/tcp
 ufw allow 80/tcp # Keep 80 open for Certbot renewals
 systemctl reload nginx
 
-echo "------------------------------------------------------------------"
-echo "✅ Base Installation Complete!"
-echo "Dashboard is live at: https://$DOMAIN_NAME:$TARGET_PORT"
-echo "Base admin (dashboard): ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}"
-echo "------------------------------------------------------------------"
+# Base success message (will also show in Marzban branch)
+print_base_success() {
+  echo "------------------------------------------------------------------"
+  echo "✅ Base Installation Complete!"
+  echo "Dashboard is live at: https://${DOMAIN_NAME}:${TARGET_PORT}"
+  echo "Base admin (dashboard): ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}"
+}
 
 # 10. Prompt for Marzban installation
 read -p "Do you want to install Marzban on this server? (y/N): " INSTALL_MARZBAN
@@ -254,13 +256,17 @@ HOOK
   echo "--- Restarting Marzban ---"
   marzban restart
 
-  echo "------------------------------------------------------------------"
+  # Final user-friendly output
+  print_base_success
+  echo ""
   echo "✅ Marzban installation and configuration complete."
   echo "Marzban admin (SUDO): ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}"
-  echo "Base admin (shared):  ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}"
-  echo "These are synced and stored in /opt/marzban/.env (SUDO_USERNAME/SUDO_PASSWORD) and .env (ADMIN_EMAIL/ADMIN_PASSWORD)."
+  echo "These are synced and stored in:"
+  echo "  - .env (ADMIN_EMAIL/ADMIN_PASSWORD)"
+  echo "  - /opt/marzban/.env (SUDO_USERNAME/SUDO_PASSWORD)"
   echo "------------------------------------------------------------------"
 else
-  echo "Skipped Marzban installation."
-  echo "Base admin (dashboard): ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}"
+  # Final user-friendly output (base only)
+  print_base_success
+  echo "------------------------------------------------------------------"
 fi
