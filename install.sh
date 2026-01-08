@@ -21,14 +21,14 @@ fi
 
 echo "--- Updating System & Installing Dependencies ---"
 apt update
-apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx
+apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx curl jq openssl
 
 # 3. Create Dockerfiles (Includes OpenSSL Fix)
 echo "--- Creating Dockerfiles ---"
 mkdir -p backend frontend
 
 # Backend Dockerfile
-cat <<DOCKERFILE > backend/Dockerfile
+cat <<'DOCKERFILE' > backend/Dockerfile
 FROM node:18-alpine
 WORKDIR /app
 # Install OpenSSL (Required for Prisma on Alpine)
@@ -42,7 +42,7 @@ CMD ["npm", "start"]
 DOCKERFILE
 
 # Frontend Dockerfile
-cat <<DOCKERFILE > frontend/Dockerfile
+cat <<'DOCKERFILE' > frontend/Dockerfile
 FROM node:18-alpine as build
 WORKDIR /app
 COPY package*.json ./
@@ -53,20 +53,20 @@ RUN npm run build
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 # Custom Nginx config for React Router & API Proxy
-RUN echo 'server { \\
-    listen 80; \\
-    location / { \\
-        root /usr/share/nginx/html; \\
-        index index.html index.htm; \\
-        try_files \$uri \$uri/ /index.html; \\
-    } \\
-    location /api { \\
-        proxy_pass http://backend:5000; \\
-        proxy_http_version 1.1; \\
-        proxy_set_header Upgrade \$http_upgrade; \\
-        proxy_set_header Connection "upgrade"; \\
-        proxy_set_header Host \$host; \\
-    } \\
+RUN echo 'server { \
+    listen 80; \
+    location / { \
+        root /usr/share/nginx/html; \
+        index index.html index.htm; \
+        try_files $uri $uri/ /index.html; \
+    } \
+    location /api { \
+        proxy_pass http://backend:5000; \
+        proxy_http_version 1.1; \
+        proxy_set_header Upgrade $http_upgrade; \
+        proxy_set_header Connection "upgrade"; \
+        proxy_set_header Host $host; \
+    } \
 }' > /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
@@ -124,7 +124,6 @@ docker compose up -d --build
 
 # 7. Initialize Database (Prevents 502 Error)
 echo "--- Initializing Database Tables ---"
-# Wait a moment for container to be ready
 sleep 10
 docker compose run --rm backend npx prisma db push
 docker compose restart backend
@@ -152,22 +151,102 @@ nginx -t && systemctl reload nginx
 
 # 9. Setup SSL & Switch to Port 6104
 echo "--- Setting up SSL (HTTPS) ---"
-# Get Cert on standard port 80/443 first
 certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $ADMIN_EMAIL --redirect
 
-# Modify Nginx to listen on 6104 instead of 443
 echo "--- Moving SSL to Port $TARGET_PORT ---"
 sed -i "s/listen 443 ssl/listen $TARGET_PORT ssl/g" /etc/nginx/sites-available/$DOMAIN_NAME
 
-# Open Firewall for new port
 ufw allow $TARGET_PORT/tcp
 ufw allow 80/tcp # Keep 80 open for Certbot renewals
-
 systemctl reload nginx
 
 echo "------------------------------------------------------------------"
-echo "✅ Installation Complete!"
-echo "------------------------------------------------------------------"
+echo "✅ Base Installation Complete!"
 echo "Dashboard is live at: https://$DOMAIN_NAME:$TARGET_PORT"
 echo "Login: admin@admin.com / admin123"
 echo "------------------------------------------------------------------"
+
+# 10. Prompt for Marzban installation
+read -p "Do you want to install Marzban on this server? (y/N): " INSTALL_MARZBAN
+INSTALL_MARZBAN=${INSTALL_MARZBAN,,}  # to lowercase
+
+if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
+  echo "--- Installing Marzban ---"
+  # Install Marzban
+  sudo bash -c "$(curl -sL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban.sh)" @ install
+
+  echo "--- Preparing certs for Marzban ---"
+  mkdir -p /var/lib/marzban/certs
+  cp /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem /var/lib/marzban/certs/fullchain.pem
+  cp /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem /var/lib/marzban/certs/privkey.pem
+  chmod 600 /var/lib/marzban/certs/privkey.pem
+  chown -R marzban:marzban /var/lib/marzban/certs || true
+
+  echo "--- Setting up cert renewal hook ---"
+  # Create a renew hook to recopy certs after renewal
+  mkdir -p /etc/letsencrypt/renewal-hooks/post
+  cat <<'HOOK' > /etc/letsencrypt/renewal-hooks/post/20-marzban-cert-sync.sh
+#!/bin/bash
+DOMAIN_DIR=$(basename "$(dirname "$(readlink -f "$RENEWED_LINEAGE")")")
+SRC="/etc/letsencrypt/live/$DOMAIN_DIR"
+DEST="/var/lib/marzban/certs"
+if [ -f "$SRC/fullchain.pem" ] && [ -f "$SRC/privkey.pem" ]; then
+  cp "$SRC/fullchain.pem" "$DEST/fullchain.pem"
+  cp "$SRC/privkey.pem" "$DEST/privkey.pem"
+  chmod 600 "$DEST/privkey.pem"
+  chown -R marzban:marzban "$DEST" || true
+  systemctl restart marzban || true
+fi
+HOOK
+  chmod +x /etc/letsencrypt/renewal-hooks/post/20-marzban-cert-sync.sh
+
+  echo "--- Configuring Marzban .env for SSL ---"
+  MARZBAN_ENV="/opt/marzban/.env"
+  if [ -f "$MARZBAN_ENV" ]; then
+    # Uncomment SSL lines
+    sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_CERTFILE *=.*|UVICORN_SSL_CERTFILE="/var/lib/marzban/certs/fullchain.pem"|' "$MARZBAN_ENV"
+    sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_KEYFILE *=.*|UVICORN_SSL_KEYFILE="/var/lib/marzban/certs/privkey.pem"|' "$MARZBAN_ENV"
+
+    # Ensure custom template settings
+    if ! grep -q '^CUSTOM_TEMPLATES_DIRECTORY=' "$MARZBAN_ENV"; then
+      echo 'CUSTOM_TEMPLATES_DIRECTORY="/var/lib/marzban/templates/"' >> "$MARZBAN_ENV"
+    else
+      sed -i 's|^CUSTOM_TEMPLATES_DIRECTORY=.*|CUSTOM_TEMPLATES_DIRECTORY="/var/lib/marzban/templates/"|' "$MARZBAN_ENV"
+    fi
+    if ! grep -q '^SUBSCRIPTION_PAGE_TEMPLATE=' "$MARZBAN_ENV"; then
+      echo 'SUBSCRIPTION_PAGE_TEMPLATE="subscription/index.html"' >> "$MARZBAN_ENV"
+    else
+      sed -i 's|^SUBSCRIPTION_PAGE_TEMPLATE=.*|SUBSCRIPTION_PAGE_TEMPLATE="subscription/index.html"|' "$MARZBAN_ENV"
+    fi
+  else
+    echo "WARNING: $MARZBAN_ENV not found; cannot configure Marzban SSL."
+  fi
+
+  echo "--- Deploying subscription template ---"
+  mkdir -p /var/lib/marzban/templates/subscription
+  if [ -f "./template/index.html" ]; then
+    cp ./template/index.html /var/lib/marzban/templates/subscription/index.html
+  else
+    echo "WARNING: ./template/index.html not found; skipping template copy."
+  fi
+
+  echo "--- Restarting Marzban ---"
+  marzban restart
+
+  echo "--- Creating Marzban admin user ---"
+  RANDOM_PASS=$(openssl rand -base64 16 | tr -d '\n')
+  {
+    echo "admin"
+    echo "n"
+    echo "$RANDOM_PASS"
+    echo "$RANDOM_PASS"
+  } | marzban cli admin create
+
+  echo "------------------------------------------------------------------"
+  echo "✅ Marzban installation and configuration complete."
+  echo "Admin username: admin"
+  echo "Admin password: $RANDOM_PASS"
+  echo "------------------------------------------------------------------"
+else
+  echo "Skipped Marzban installation."
+fi
