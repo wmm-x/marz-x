@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- Configuration ---
-APP_PORT=3000          # Internal port for frontend (served by Nginx)
+APP_PORT=3000          # Internal port for frontend (Nginx serves dist)
 TARGET_PORT=6104       # External HTTPS port
 ADMIN_EMAIL="admin@admin.com" # Certbot email
 MARZBAN_ADMIN_USER="admin"
@@ -10,13 +10,13 @@ MARZBAN_ADMIN_USER="admin"
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 1. Require root
+# 1) Require root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root (use sudo)"
   exit 1
 fi
 
-# 2. Domain
+# 2) Domain
 read -p "Enter your domain name (e.g., dashboard.example.com): " DOMAIN_NAME
 if [ -z "$DOMAIN_NAME" ]; then
   echo "Domain name is required!"
@@ -27,7 +27,7 @@ echo "--- Updating system & installing dependencies ---"
 apt update
 apt install -y nginx certbot python3-certbot-nginx curl jq openssl
 
-# 3. Node.js 20.x LTS (install or upgrade if <20)
+# 3) Node.js 20.x LTS (install or upgrade if <20)
 if ! command -v node &>/dev/null; then
   echo "--- Installing Node.js 20.x LTS ---"
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
@@ -41,14 +41,14 @@ else
   fi
 fi
 
-# 4. Ensure dotenv exists (no full npm install)
+# 4) Ensure dotenv exists (no full npm install)
 cd "$SCRIPT_DIR"
 if [ ! -d "$SCRIPT_DIR/node_modules/dotenv" ]; then
   echo "--- Installing dotenv only ---"
   npm install --no-save dotenv
 fi
 
-# 5. Generate .env
+# 5) Generate .env
 echo "--- Generating .env ---"
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
@@ -68,13 +68,13 @@ ENVFILE
 
 mkdir -p "$SCRIPT_DIR/data"
 
-# 6. Prisma: generate client & push schema
+# 6) Prisma: generate client & push schema
 echo "--- Setting up Prisma ---"
 cd "$SCRIPT_DIR"
 npx prisma generate
 npx prisma db push
 
-# 7. systemd service
+# 7) systemd service for backend
 echo "--- Creating backend service ---"
 cat <<SERVICE > /etc/systemd/system/marzban-dashboard.service
 [Unit]
@@ -98,7 +98,7 @@ systemctl daemon-reload
 systemctl enable marzban-dashboard
 systemctl restart marzban-dashboard
 
-# 8. Nginx for frontend (dist) and backend proxy
+# 8) Nginx for frontend (dist) and backend proxy
 echo "--- Configuring Nginx ---"
 cat <<NGINX > /etc/nginx/sites-available/$DOMAIN_NAME
 server {
@@ -128,7 +128,7 @@ ln -sf /etc/nginx/sites-available/$DOMAIN_NAME /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 
-# 9. SSL on TARGET_PORT
+# 9) SSL on TARGET_PORT
 echo "--- Setting up SSL (HTTPS) ---"
 certbot --nginx -d "$DOMAIN_NAME" --non-interactive --agree-tos -m "$ADMIN_EMAIL" --redirect
 
@@ -146,7 +146,7 @@ echo "Username: admin@admin.com"
 echo "Password: admin123"
 echo "------------------------------------------------------------------"
 
-# 10. Optional: Marzban install
+# 10) Optional Marzban installation (unchanged)
 read -p "Do you want to install Marzban on this server? (y/N): " INSTALL_MARZBAN
 INSTALL_MARZBAN=${INSTALL_MARZBAN,,}
 
