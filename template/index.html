@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
-        <!-- Load Alpine.js first -->
-<script src="https://cdn.jsdelivr.net/npm/alpinejs@2.8.2/dist/alpine.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/alpinejs@2.8.2/dist/alpine.min.js" defer></script>
 
-<!-- Then load the script with clipboard functionality -->
-<script src="https://cdn.jsdelivr.net/npm/@ryangjchandler/alpine-clipboard@2.2.0/dist/alpine-clipboard.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/@ryangjchandler/alpine-clipboard@2.2.0/dist/alpine-clipboard.js" defer></script>
 
         <link rel="apple-touch-icon" sizes="76x76" href="/apple-touch-icon.png">
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -19,7 +17,6 @@
         <title>{{ user.username }} - Sub Info</title>
         <link href="https://cdn.jsdelivr.net/gh/MuhammadAshouri/marzban-templates@master/template-01/build.css" rel="stylesheet" />
         <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/1.6.6/flowbite.min.css" rel="stylesheet" />
-        <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
         <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
         <script defer src="https://cdn.jsdelivr.net/gh/MuhammadAshouri/marzban-templates@master/template-01/qrcode.min.js"></script>
         <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.12.1/dist/cdn.min.js"></script>
@@ -28,26 +25,12 @@
 
         <script>
             function copyToClipboard(text) {
-                // Create a temporary textarea element
                 const textarea = document.createElement('textarea');
-                
-                // Set the text content to be copied to the clipboard
                 textarea.value = text;
-    
-                // Append the textarea to the document
                 document.body.appendChild(textarea);
-    
-                // Select the text in the textarea
                 textarea.select();
-    
-                // Execute the "copy" command to copy the selected text to the clipboard
                 document.execCommand('copy');
-    
-                // Remove the textarea from the document
                 document.body.removeChild(textarea);
-    
-                // You can optionally provide feedback to the user
-                
             }
         </script>
     
@@ -60,106 +43,54 @@
             const dataUsage = dataLimit == "∞" ? 100 : tmpUsage;
             const dataChartColor = dataUsage < 40 ? "bg-green-600" : dataUsage < 80 ? "bg-yellow-600" : "bg-red-500";
             const resetInterval = "{{ user.data_limit_reset_strategy.value }}";
-            let expireDateVar = expireDateInit.includes("∞") ? "∞" : localStorage.getItem("lang") == "fa" ? new Date(expireDateInit).toLocaleString("fa-IR-u-nu-latn").replace(",", " ") : expireDateInit;
+            let expireDateVar = expireDateInit.includes("∞") ? "∞" : expireDateInit;
+            
             let appsJson = {
                 IOS: {
                     Streisand: {
-                        url: [
-                            {
-                                name: "IOS 14+",
-                                url: "https://apps.apple.com/us/app/streisand/id6450534064",
-                                best: true,
-                            },
-                        ],
+                        url: [{ name: "IOS 14+", url: "https://apps.apple.com/us/app/streisand/id6450534064", best: true }],
                         tutorial: "",
                     },
                     FoXray: {
-                        url: [
-                            {
-                                name: "IOS 16+",
-                                url: "https://apps.apple.com/us/app/foxray/id6448898396",
-                                best: false,
-                            },
-                        ],
+                        url: [{ name: "IOS 16+", url: "https://apps.apple.com/us/app/foxray/id6448898396", best: false }],
                         tutorial: "",
                     },
                     V2Box: {
-                        url: [
-                            {
-                                name: "IOS 14+",
-                                url: "https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690",
-                                best: false,
-                            },
-                        ],
+                        url: [{ name: "IOS 14+", url: "https://apps.apple.com/us/app/v2box-v2ray-client/id6446814690", best: false }],
                         tutorial: "",
                     },
                     Shadowrocket: {
-                        url: [
-                            {
-                                name: "$3.99",
-                                url: "https://apps.apple.com/ca/app/shadowrocket/id932747118",
-                                best: false,
-                            },
-                        ],
+                        url: [{ name: "$3.99", url: "https://apps.apple.com/ca/app/shadowrocket/id932747118", best: false }],
                         tutorial: "",
                     },
                 },
                 Android: {
                     HTTPInjector: {
-                        url: [
-                            {
-                                name: "GooglePlay",
-                                url: "https://play.google.com/store/apps/details?id=com.evozi.injector&hl=en_SG&pli=1",
-                                best: true,
-                            },
-                            
-                        ],
+                        url: [{ name: "GooglePlay", url: "https://play.google.com/store/apps/details?id=com.evozi.injector&hl=en_SG&pli=1", best: true }],
                         tutorial: "",
                     },
                     NetMod: {
-                        url: [
-                            {
-                                name: "GooglePlay",
-                                url: "https://play.google.com/store/apps/details?id=com.netmod.syna&pcampaignid=web_share",
-                                best: false,
-                            },
-                        ],
+                        url: [{ name: "GooglePlay", url: "https://play.google.com/store/apps/details?id=com.netmod.syna&pcampaignid=web_share", best: false }],
                         tutorial: "",
                     },
                 },
                 Windows: {
                     NetMod: {
-                        url: [
-                            {
-                                name: "",
-                                url: "https://sourceforge.net/projects/netmodhttp/files/latest/download",
-                                best: true,
-                            },
-                        ],
+                        url: [{ name: "", url: "https://sourceforge.net/projects/netmodhttp/files/latest/download", best: true }],
                         tutorial: "",
                     },
                     nekoray: {
-                        url: [
-                            {
-                                name: "",
-                                url: "https://github.com/MatsuriDayo/nekoray/releases/download/3.8/nekoray-3.8-2023-06-14-windows64.zip",
-                                best: true,
-                            },
-                        ],
+                        url: [{ name: "", url: "https://github.com/MatsuriDayo/nekoray/releases/download/3.8/nekoray-3.8-2023-06-14-windows64.zip", best: true }],
                         tutorial: "",
                     },
                     v2rayN: {
-                        url: [
-                            {
-                                name: "",
-                                url: "https://github.com/2dust/v2rayN/releases/download/6.27/zz_v2rayN-With-Core-SelfContained.7z",
-                                best: false,
-                            },
-                        ],
+                        url: [{ name: "", url: "https://github.com/2dust/v2rayN/releases/download/6.27/zz_v2rayN-With-Core-SelfContained.7z", best: false }],
                         tutorial: "",
                     },
                 },
             };
+
+            // ENGLISH ONLY
             let langJson = {
                 en: {
                     active: "Active",
@@ -186,67 +117,13 @@
                     tutorial: "Tutorial",
                     download: "Download",
                     support: "Whatsapp Support",
-                },
-                fa: {
-                    active: "فعال",
-                    limited: "تمام شده",
-                    expired: "پایان یافته",
-                    disabled: "غیرفعال",
-                    dataUsage: "مصرف داده: ",
-                    expirationDate: "تاریخ پایان: ",
-                    resetIntervalDay: "(ریست روزانه)",
-                    resetIntervalWeek: "(ریست هفتگی)",
-                    resetIntervalMonth: "(ریست ماهانه)",
-                    resetIntervalYear: "(ریست سالانه)",
-                    remainingDays: "روزهای باقی‌مانده: ",
-                    remainingDaysSufix: " روز",
-                    links: "لینک‌ها",
-                    apps: "برنامه‌ها",
-                    tutorials: "آموزش‌ها",
-                    subscription: "لینک اشتراک",
-                    language: "زبان",
-                    settings: "تنظیمات",
-                    darkMode: "تم تیره",
-                    copyAll: "کپی همه",
-                    proxy: "پروکسی",
-                    tutorial: "آموزش",
-                    download: "دانلود",
-                    support: "پشتیبانی تلگرام",
-                },
-                ru: {
-                    active: "активный",
-                    limited: "ограниченное",
-                    expired: "истекший",
-                    disabled: "не активный",
-                    dataUsage: "Использование данных: ",
-                    expirationDate: "Дата окончания срока: ",
-                    resetIntervalDay: "(сбрасывает каждый день)",
-                    resetIntervalWeek: "(сбрасывается каждую неделю)",
-                    resetIntervalMonth: "(сбрасывается каждый месяц)",
-                    resetIntervalYear: "(сбрасывается каждый год)",
-                    remainingDays: "оставшиеся дни: ",
-                    remainingDaysSufix: " дни",
-                    links: "ссылки",
-                    apps: "Программы",
-                    tutorials: "учебники",
-                    subscription: "подписка",
-                    language: "язык",
-                    settings: "настройки",
-                    darkMode: "тёмный режим",
-                    copyAll: "скопировать все",
-                    proxy: "прокси",
-                    tutorial: "руководство",
-                    download: "скачать",
-                    support: "Поддержка телеграмм",
-                },
+                }
             };
+
             let settings = {
                 darkMode: 0,
-                language: "en",
-                support: "https://wa.me/+94769316735", // can be telegram's support username link (exp: https://t.me/gozargah_marzban)
-                proxy: "", // hides proxy button
-                //"proxy": "tg://socks?server=127.0.0.1&port=2085" // opens telegram directly
-                //"proxy": "https://t.me/socks?server=127.0.0.1&port=2085"  // opens telegram in browser
+                support: "", // Disabled support
+                proxy: "", 
             };
 
             document.addEventListener("alpine:init", () => {
@@ -256,38 +133,104 @@
 
             document.addEventListener("alpine-i18n:ready", () => {
                 window.AlpineI18n.fallbackLocale = "en";
-                let locale = localStorage.getItem("lang") ?? settings.language;
-                window.AlpineI18n.create(locale, langJson);https://app.zoom.us/wc/82768837955/join?fromPWA=1&pwd=82wPqu1ARO2yvGFVBhTgKeWXw5FNrS.1&_x_zm_rtaid=f3y8VMVaRtW_gXzIFV9llg.1703689352766.8d5db29674d41f49ba12df0ac8e9a195&_x_zm_rhtaid=870
-                AlpineI18n.locale = locale;
-                document.body.setAttribute("dir", locale == "fa" ? "rtl" : "ltr");
-                if (locale == "fa") $(document.body).addClass("font-[Vazirmatn]");
-                else $(document.body).removeClass("font-[Vazirmatn]");
+                window.AlpineI18n.create("en", langJson);
+                AlpineI18n.locale = "en";
+                document.body.setAttribute("dir", "ltr"); // Force Left-to-Right
             });
         </script>
         <style>
-      
-      #page-container {
-          
-        background: url(https://cdn.jsdelivr.net/gh/sh-y-zu/Marzban-Templates@master/back.jpg);
-		background-repeat: no-repeat;
-        background-attachment: fixed;
-        background-size: cover;
+            /* Global Font - Default System Sans */
+            body {
+                font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            }
 
-        }
-        
+            /* --- LIGHT MODE BACKGROUND --- */
+            #page-container {
+                /* Modern soft gray gradient for light mode */
+                background-color: #f3f4f6;
+                background-image: linear-gradient(to bottom right, #f3f4f6, #e5e7eb);
+                background-repeat: no-repeat;
+                background-attachment: fixed;
+                background-size: cover;
+                min-height: 100vh;
+            }
+
+            /* --- DARK MODE BACKGROUND (Ultra Dark) --- */
+            body.dark {
+                background-color: #000000 !important;
+            }
+            body.dark #page-container {
+                background: #000000 !important; /* Pure Black */
+                background-image: none !important;
+            }
+            
+            /* Card Styling for Dark Mode */
+            body.dark .dark\:bg-sub-dark {
+                background-color: #0a0a0a !important; /* Nearly black card */
+                border: 1px solid #333333; /* Distinct border for visibility */
+                box-shadow: none !important;
+            }
+            body.dark .text-gray-900 {
+                color: #e5e7eb !important; /* Light text fix */
+            }
+
+            /* --- INTERACTIVITY UPGRADES --- */
+            /* Logo Hover */
+            .logo-interactive {
+                transition: transform 0.3s ease;
+                cursor: pointer;
+            }
+            .logo-interactive:hover {
+                transform: scale(1.05);
+            }
+
+            /* Status Badge Hover */
+            .status-badge {
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+            }
+            .status-badge:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            }
+
+            /* Icon Button Hovers */
+            .icon-btn-hover {
+                transition: background-color 0.2s, transform 0.2s;
+            }
+            .icon-btn-hover:hover {
+                background-color: rgba(0,0,0,0.05);
+                transform: scale(1.1);
+                border-radius: 50%;
+            }
+            body.dark .icon-btn-hover:hover {
+                background-color: rgba(255,255,255,0.1);
+            }
         </style>
     </head>
     <body :class="settings.darkMode == 1 ? 'dark' : ''" x-data>
+        <div class="fixed top-5 right-5 z-50">
+            <button onclick="toggleTheme()" class="p-2 rounded-full bg-white dark:bg-black shadow-lg text-gray-800 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-900 transition-all duration-300 focus:outline-none ring-1 ring-gray-200 dark:ring-gray-700 hover:scale-110">
+                <svg class="w-6 h-6 hidden dark:block" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"></path>
+                </svg>
+                <svg class="w-6 h-6 block dark:hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+                </svg>
+            </button>
+        </div>
+
         <div class="relative flex min-h-screen flex-col justify-center overflow-hidden bg-main-light dark:bg-main-dark sm:py-6 transition" id="page-container">
             <div class="relative bg-sub-light dark:bg-sub-dark px-6 pt-10 pb-8 shadow-main-sh dark:shadow-main-sh-dark sm:mx-auto sm:rounded-xl sm:px-10 bg-clip-padding backdrop-filter backdrop-blur-xl bg-opacity-0 w-full max-w-2xl">
                 <div class="mx-auto max-w-xl">
                     <div class="flex flex-col sm:flex-row space-y-10 sm:space-y-0 sm:divide-x sm:rtl:divide-x-reverse sm:divide-blue-600/50">
                         <div class="basis-1/3 space-y-5 flex flex-col items-center py-3 sm:ltr:pr-9 sm:rtl:pl-9" x-data>
-                            <img src="https://cdn.jsdelivr.net/gh/wmm-malshan/Marzban-Templates@master/nlogo.png" class="w-28" />
+                            <a href="." class="logo-interactive">
+                                <img src="https://raw.githubusercontent.com/wmm-x/marz-x/424a0549e2b1fbeed463720eadd96e86a2ea8037/template/logo-s.png" class="w-28" />
+                            </a>
                             <span class="inline-block dark:text-white text-black font-semibold text-lg">{{ user.username }}</span>
-                            <span class="px-4 py-2 rounded-full inline-block shadow-md shadow-green-900 font-bold text-gray-200" x-data="{status: '{{ user.status.value }}'}" x-text="[status == 'active' ? $t('active') : status == 'limited' ? $t('limited') : status == 'expired' ? $t('expired') : $t('disabled')]" :class="[status == 'active' ? 'bg-blue-600' : status == 'limited' ? 'bg-red-600' : status == 'expired' ? 'bg-orange-600' : 'bg-gray-600']"></span>
+                            <span class="px-4 py-2 rounded-full inline-block shadow-md shadow-green-900 font-bold text-gray-200 status-badge cursor-default" x-data="{status: '{{ user.status.value }}'}" x-text="[status == 'active' ? $t('active') : status == 'limited' ? $t('limited') : status == 'expired' ? $t('expired') : $t('disabled')]" :class="[status == 'active' ? 'bg-blue-600' : status == 'limited' ? 'bg-red-600' : status == 'expired' ? 'bg-orange-600' : 'bg-gray-600']"></span>
                             
-                            <a class="rounded-md shadow-lg transition duration-300 bg-blue-600 text-white text-center text-lg py-2 w-4/5 cursor-pointer hover:shadow-xl stroke-blue-600" x-text="$t('proxy')" x-show="settings.proxy != ''" x-bind:href="settings.proxy"></a>
+                            <a class="rounded-md shadow-lg transition duration-300 bg-blue-600 text-white text-center text-lg py-2 w-4/5 cursor-pointer hover:shadow-xl stroke-blue-600 hover:scale-105" x-text="$t('proxy')" x-show="settings.proxy != ''" x-bind:href="settings.proxy"></a>
                         </div>
                         <div class="basis-2/3 flex flex-row items-center sm:ltr:pl-9 sm:rtl:pr-9">
                             <div class="data-usage w-full" x-data="progressBar" x-init="Alpine.data( 'progressBar', () => progressBar )">
@@ -298,44 +241,12 @@
                                     </div>
                                 </div>
                                 <div class="dark:text-white text-black mt-10 text-center"><span class="font-bold" x-text="$t('expirationDate')"></span><span dir="ltr" x-data="{expireDate: ''}" x-init="Alpine.data( 'expireDate', expireDate = expireDateVar )" x-text="expireDate"></span></div>
-                                <!--2023/06/31 10:43:59-->
                                 <div class="dark:text-white text-black mt-3 text-sm text-center" x-text="resetInterval == 'year' ? $t('resetIntervalYear') : resetInterval == 'month' ? $t('resetIntervalMonth') : resetInterval == 'week' ? $t('resetIntervalWeek') : resetInterval == 'day' ? $t('resetIntervalDay') : ''"></div>
                                 <div class="dark:text-white text-black mt-5 text-center"><span class="font-bold" x-text="$t('remainingDays')"></span><span>{% if not user.expire %}∞{% else %}{% set remaining_days = ((user.expire - now().timestamp()) // (24 * 3600)) %}({{ remaining_days | int if (remaining_days | int) > -1 else 0 }}){% endif %}</span><span x-text="$t('remainingDaysSufix')"></span></div>
                             </div>
                         </div>
                     </div>
-                    <a class="rounded-md shadow-lg border-blue-600 border-2 text-white text-lg my-6 cursor-pointer h-16 flex flex-row justify-center items-center" x-show="settings.support != ''" x-bind:href="settings.support" target="_blank">
-                        <svg class="h-12 ltr:mr-3 rtl:ml-3" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                                <style>
-                                    .cls-1,
-                                    .cls-3 {
-                                        fill: none;
-                                        stroke: rgb(37 99 235);
-                                        stroke-linecap: round;
-                                        stroke-linejoin: round;
-                                    }
-
-                                    .cls-1 {
-                                        stroke-width: 2px;
-                                    }
-
-                                    .cls-2 {
-                                        fill: rgb(37 99 235);
-                                    }
-                                </style>
-                            </defs>
-                            <title />
-                            <path class="cls-1" d="M8.25,25a5,5,0,0,1-4.9-6,5.12,5.12,0,0,1,5.08-4H10V25Z" />
-                            <path class="cls-1" d="M23.75,25a5,5,0,0,0,4.9-6,5.12,5.12,0,0,0-5.08-4H22V25Z" />
-                            <path class="cls-1" d="M7,15V13.82a9.11,9.11,0,0,1,6.91-9A9,9,0,0,1,25,13.61V15" />
-                            <path class="cls-1" d="M10,25h0a3,3,0,0,0,3,3" />
-                            <circle class="cls-2" cx="16" cy="28" r="1" />
-                            <line class="cls-3" x1="7.5" x2="7.5" y1="15.5" y2="24.5" />
-                            <rect class="cls-2" height="10" width="2" x="22" y="15" />
-                        </svg>
-                        <div x-text="$t('support')" style="color: #1c64f2; font-weight: bold;"></div>
-                    </a>
+                    
                     <div class="shadow-box-shadow rounded-lg p-5 mt-7" x-data>
                         <div class="mb-4 border-b border-gray-200 dark:border-gray-700">
                             <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" id="main-tab" data-tabs-toggle="#tabs-content" role="tablist">
@@ -350,15 +261,15 @@
                         <div id="tabs-content">
                             <div class="hidden" id="links" role="tabpanel" aria-labelledby="links-tab">
                                 <ul class="list-none p-0 m-0">
-                                    <li class="flex px-3 mb-3 justify-between leading-[3.5rem] shadow-lg bg-black/20 rounded-md" x-data>
+                                    <li class="flex px-3 mb-3 justify-between leading-[3.5rem] shadow-lg bg-black/20 rounded-md transition hover:bg-black/5 dark:hover:bg-white/5" x-data>
                                         <span class="font-semibold flex-1 dark:text-gray-200 text-black cursor-default" x-text="$t('subscription')"></span>
                                         <div class="flex justify-between items-center">
-                                            <div class="w-8 h-8 ltr:mr-3 rtl:ml-3 cursor-pointer" x-data="{copyColor: 'stroke-blue-600'}" @click="() => { copyToClipboard( window.location.href ); copyColor = 'stroke-green-600'; copyColor = 'stroke-green-600'; setTimeout(() => copyColor = 'stroke-blue-600', 2000); }">
+                                            <div class="w-8 h-8 ltr:mr-3 rtl:ml-3 cursor-pointer icon-btn-hover flex items-center justify-center" x-data="{copyColor: 'stroke-blue-600'}" @click="() => { copyToClipboard( window.location.href ); copyColor = 'stroke-green-600'; copyColor = 'stroke-green-600'; setTimeout(() => copyColor = 'stroke-blue-600', 2000); }">
                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" :class="copyColor" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
                                                 </svg>
                                             </div>
-                                            <div class="w-8 h-8 cursor-pointer qr-button" :data-link="window.location.href">
+                                            <div class="w-8 h-8 cursor-pointer qr-button icon-btn-hover flex items-center justify-center" :data-link="window.location.href">
                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="stroke-blue-600 dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
@@ -367,18 +278,16 @@
                                         </div>
                                     </li>
                                     {% if user.status == 'active' %}
-                                    <!-- <div class="bg-black/20 rounded-md shadow-lg pt-3 pb-1"> -->
                                     {% for link in user.links %}
-                                    <li class="flex px-3 mb-1 justify-between leading-[3.5rem] rounded-md transition duration-300" x-data="{link: '{{ link }}'}">
+                                    <li class="flex px-3 mb-1 justify-between leading-[3.5rem] rounded-md transition duration-300 hover:bg-black/5 dark:hover:bg-white/5" x-data="{link: '{{ link }}'}">
                                         <span class="font-semibold flex-1 dark:text-gray-200 text-black cursor-default" x-text="getRemark(link)"></span>
                                         <div class="flex justify-between items-center">
-
-                                            <div class="w-8 h-8 ltr:mr-3 rtl:ml-3 cursor-pointer" x-data="{copyColor: 'stroke-blue-600'}" @click="() => { copyToClipboard( link ); copyColor = 'stroke-green-600'; copyColor = 'stroke-green-600'; setTimeout(() => copyColor = 'stroke-blue-600', 2000); }">
+                                            <div class="w-8 h-8 ltr:mr-3 rtl:ml-3 cursor-pointer icon-btn-hover flex items-center justify-center" x-data="{copyColor: 'stroke-blue-600'}" @click="() => { copyToClipboard( link ); copyColor = 'stroke-green-600'; copyColor = 'stroke-green-600'; setTimeout(() => copyColor = 'stroke-blue-600', 2000); }">
                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" :class="copyColor" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
                                                 </svg>
                                             </div>
-                                            <div class="w-8 h-8 cursor-pointer qr-button" :data-link="link">
+                                            <div class="w-8 h-8 cursor-pointer qr-button icon-btn-hover flex items-center justify-center" :data-link="link">
                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="stroke-blue-600 dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
@@ -387,8 +296,6 @@
                                         </div>
                                     </li>
                                     {% endfor %}
-                                    <!--<li class="rounded-md m-3 shadow-lg transition duration-300 bg-blue-600 text-white text-center text-lg py-2 mt-3 cursor-pointer hover:shadow-2xl copyAllButton stroke-blue-600" x-text="$t('copyAll')"></li>-->
-                                    <!-- </div> -->
                                     {% endif %}
                                 </ul>
                             </div>
@@ -415,17 +322,8 @@
                                                                     <span :class="subApp.best ? 'dark:text-gray-200 text-gray-800' : 'text-gray-600'" class="text-sm" x-text="subApp.name"></span>
                                                                 </div>
                                                                 <div class="flex justify-between items-center">
-                                                                    <a class="w-8 h-8 ltr:mr-3 rtl:ml-3 cursor-pointer video-button" :data-tooltip-target="'tooltip-tutorial-' + app" :data-link="appsJson[item][app].tutorial" :data-title="app">
-                                                                        <svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="stroke-blue-600 dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors">
-                                                                            <polygon points="23 7 16 12 23 17 23 7" />
-                                                                            <rect height="14" rx="2" ry="2" width="15" x="1" y="5" />
-                                                                        </svg>
-                                                                    </a>
-                                                                    <div :id="'tooltip-tutorial-' + app" role="tooltip" class="absolute z-10 invisible inline-block px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700">
-                                                                        <span x-text="$t('tutorial')"></span>
-                                                                        <div class="tooltip-arrow" data-popper-arrow></div>
-                                                                    </div>
-                                                                    <a class="w-8 h-8 cursor-pointer" :data-tooltip-target="'tooltip-download-' + app" :href="link" target="_blank">
+                                                                    
+                                                                    <a class="w-8 h-8 cursor-pointer icon-btn-hover flex items-center justify-center" :data-tooltip-target="'tooltip-download-' + app" :href="link" target="_blank">
                                                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="stroke-blue-600 dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                                                                         </svg>
@@ -508,30 +406,6 @@
                 setTimeout(() => thisObj.css("background", "#2563eb"), 1500);
             });
 
-            document.addEventListener("alpine:initialized", () => {
-                $(".video-button").each((i, elem) => {
-                    $(elem).on("click", () => {
-                        const title = $(elem).attr("data-title");
-                        const link = $(elem).attr("data-link");
-                        $(document.body).addClass("overflow-hidden");
-                        $("#page-container").addClass("blur-sm scale-110 -z-10");
-                        $("#popup > .content").html("");
-                        let video = $("<video>").attr("controls", "").addClass("rounded-lg");
-                        let source = $("<source>").attr({ src: link, type: "video/mp4" }).appendTo(video);
-                        video.appendTo("#popup > .content");
-                        $("#popup > h2").html(title);
-                        popup.removeClass("hidden");
-                    });
-                });
-            });
-
-            window.addEventListener("alpine-i18n:locale-change", function () {
-                var locale = window.AlpineI18n.locale;
-                document.body.setAttribute("dir", locale == "fa" ? "rtl" : "ltr");
-                if (locale == "fa") $(document.body).addClass("font-[vazirmatn]");
-                else $(document.body).removeClass("font-[vazirmatn]");
-            });
-
             function getRemark(link) {
                 if (link.startsWith("http")) return AlpineI18n.t("subscription");
                 if (link.includes("vmess://")) {
@@ -540,43 +414,17 @@
                 } else return decodeURIComponent(link.split("#")[1]);
             }
 
-            function changeLang(ele) {
-                localStorage.setItem("lang", ele.value);
-                window.AlpineI18n.locale = ele.value;
-                document.body.setAttribute("dir", ele.value == "fa" ? "rtl" : "ltr");
-                if (ele.value == "fa") $(document.body).addClass("font-[Vazirmatn]");
-                else $(document.body).removeClass("font-[Vazirmatn]");
-            }
-
-            function changeTheme(ele) {
-                settings.darkMode = ele.checked ? 1 : 0;
-                localStorage.setItem("dark", settings.darkMode);
-                if (!ele.checked) $(document.body).removeClass("dark");
-                else $(document.body).addClass("dark");
-            }
-
-            function openSettings() {
-                $(document.body).addClass("overflow-hidden");
-                $("#page-container").addClass("blur-sm scale-110 -z-10");
-                var content = $("#popup > .content");
-                $(
-                    `<label for="default" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">` +
-                        AlpineI18n.t("language") +
-                        `</label>
-
-<label class="relative flex justify-between items-center cursor-pointer">
-  <input type="checkbox" value="" class="sr-only peer"` +
-                        (settings.darkMode == 1 ? " checked" : "") +
-                        ` onchange="changeTheme(this)">
-  <span class="text-sm font-medium text-gray-900 dark:text-white">` +
-                        AlpineI18n.t("darkMode") +
-                        `</span>
-  <div class="w-11 h-6 relative bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-</label>
-`,
-                ).appendTo(content);
-                $("#popup > h2").html(AlpineI18n.t("settings"));
-                popup.removeClass("hidden");
+            function toggleTheme() {
+                const body = document.body;
+                if (body.classList.contains('dark')) {
+                    body.classList.remove('dark');
+                    localStorage.setItem('dark', 0);
+                    settings.darkMode = 0;
+                } else {
+                    body.classList.add('dark');
+                    localStorage.setItem('dark', 1);
+                    settings.darkMode = 1;
+                }
             }
         </script>
     </body>
