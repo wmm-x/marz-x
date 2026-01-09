@@ -24,36 +24,49 @@ echo "--- Updating System & Installing Dependencies ---"
 apt update
 apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx curl jq openssl expect
 
-# 3. Create Dockerfiles & Ignore file
-echo "--- Creating Docker Configurations ---"
+# 3. Prepare Build Directories & Copy Files
+echo "--- Preparing Docker Build Contexts ---"
+# Remove old build dirs if they exist to prevent duplication
+rm -rf backend frontend
+mkdir -p backend frontend
 
-# Create .dockerignore to keep backend image clean
-cat <<IGNORE > .dockerignore
-node_modules
-dist
-.git
-.env
-IGNORE
+# Copy Backend Files
+# We copy src, prisma, package.json, and other config files into the backend build folder
+echo "Copying backend files..."
+cp -r src prisma package*.json prisma.config.ts backend/ 2>/dev/null || true
 
-# Backend Dockerfile (Uses root context: src/, prisma/, package.json)
-cat <<'DOCKERFILE' > Dockerfile.backend
+# Copy Frontend Files
+# We copy the pre-built dist folder into the frontend build folder
+echo "Copying frontend dist folder..."
+if [ -d "dist" ]; then
+  cp -r dist frontend/
+else
+  echo "ERROR: 'dist' folder not found! Please ensure you have built the frontend."
+  exit 1
+fi
+
+# 4. Create Dockerfiles
+echo "--- Creating Dockerfiles ---"
+
+# Backend Dockerfile
+cat <<'DOCKERFILE' > backend/Dockerfile
 FROM node:18-alpine
 WORKDIR /app
 # Install OpenSSL (Required for Prisma on Alpine)
 RUN apk add --no-cache openssl
 COPY package*.json ./
 RUN npm install --production
-# Copy source code and config
 COPY . .
 RUN npx prisma generate
 EXPOSE 5000
 CMD ["npm", "start"]
 DOCKERFILE
 
-# Frontend Dockerfile (Serves the existing 'dist' folder)
-cat <<'DOCKERFILE' > Dockerfile.frontend
+# Frontend Dockerfile
+# MODIFIED: Now uses the pre-built 'dist' folder copied into the context
+cat <<'DOCKERFILE' > frontend/Dockerfile
 FROM nginx:alpine
-# Copy the already built 'dist' folder from the host
+# Copy the contents of the local 'dist' directory to Nginx html folder
 COPY dist /usr/share/nginx/html
 # Custom Nginx config for React Router & API Proxy
 RUN echo 'server { \
@@ -75,7 +88,7 @@ EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 DOCKERFILE
 
-# 4. Generate Production .env File
+# 5. Generate Production .env File
 echo "--- Generating Production .env File ---"
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
@@ -93,14 +106,12 @@ MARZBAN_ADMIN="MarzbanAdminx"
 MARZBAN_ADMIN_PASS="G\$2WuaYJW@THP!9"
 ENVFILE
 
-# 5. Create docker-compose.yml
+# 6. Create docker-compose.yml
 echo "--- Configuring Docker Compose ---"
 cat <<COMPOSE > docker-compose.yml
 services:
   backend:
-    build: 
-      context: .
-      dockerfile: Dockerfile.backend
+    build: ./backend
     container_name: marzban_backend
     restart: always
     env_file: .env
@@ -110,9 +121,7 @@ services:
       - "5000:5000"
 
   frontend:
-    build: 
-      context: .
-      dockerfile: Dockerfile.frontend
+    build: ./frontend
     container_name: marzban_frontend
     restart: always
     ports:
@@ -124,18 +133,18 @@ volumes:
   marzban_data:
 COMPOSE
 
-# 6. Build and Start Docker
+# 7. Build and Start Docker
 echo "--- Building and Starting Application ---"
 docker compose down
 docker compose up -d --build
 
-# 7. Initialize Database (Prevents 502 Error)
+# 8. Initialize Database (Prevents 502 Error)
 echo "--- Initializing Database Tables ---"
 sleep 10
 docker compose run --rm backend npx prisma db push
 docker compose restart backend
 
-# 8. Configure Nginx (Pre-SSL)
+# 9. Configure Nginx (Pre-SSL)
 echo "--- Configuring Nginx ---"
 cat <<NGINX > /etc/nginx/sites-available/$DOMAIN_NAME
 server {
@@ -156,7 +165,7 @@ ln -sf /etc/nginx/sites-available/$DOMAIN_NAME /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 
-# 9. Setup SSL & Switch to Port 6104
+# 10. Setup SSL & Switch to Port 6104
 echo "--- Setting up SSL (HTTPS) ---"
 certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $ADMIN_EMAIL --redirect
 
@@ -174,7 +183,7 @@ echo "------------------------------------------------------------------"
   echo "Password: admin123"
 echo "------------------------------------------------------------------"
 
-# 10. Prompt for Marzban installation
+# 11. Prompt for Marzban installation
 read -p "Do you want to install Marzban on this server? (y/N): " INSTALL_MARZBAN
 INSTALL_MARZBAN=${INSTALL_MARZBAN,,}  # to lowercase
 
@@ -214,11 +223,14 @@ HOOK
   MARZBAN_ENV="/opt/marzban/.env"
   MARZBAN_SUDO_PASS=$(openssl rand -base64 16 | tr -d '\n')
   if [ -f "$MARZBAN_ENV" ]; then
+
+  # --- MODIFIED LINE START ---
+    # Ensure the file ends with a newline before appending anything
+    [ -n "$(tail -c1 "$MARZBAN_ENV")" ] && echo >> "$MARZBAN_ENV"
+    # --- MODIFIED LINE END ---
+    
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_CERTFILE *=.*|UVICORN_SSL_CERTFILE="/var/lib/marzban/certs/fullchain.pem"|' "$MARZBAN_ENV"
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_KEYFILE *=.*|UVICORN_SSL_KEYFILE="/var/lib/marzban/certs/privkey.pem"|' "$MARZBAN_ENV"
-
-    # --- FIX: Ensure file ends with newline before appending ---
-    [ -n "$(tail -c1 "$MARZBAN_ENV")" ] && echo "" >> "$MARZBAN_ENV"
 
     # Custom templates (ensure directory and subscription page are set)
     if ! grep -q '^CUSTOM_TEMPLATES_DIRECTORY=' "$MARZBAN_ENV"; then
