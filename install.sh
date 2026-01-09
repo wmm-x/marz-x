@@ -181,6 +181,10 @@ echo "------------------------------------------------------------------"
   echo "Dashboard is live at: https://$DOMAIN_NAME:$TARGET_PORT"
   echo "Username: admin@admin.com"
   echo "Password: admin123"
+  echo ""
+  echo "🔹 2. CONNECT MARZBAN TO DASHBOARD (REQUIRED)"
+  echo "   1. Log in to the Marz-X Dashboard above."
+  echo "   2. Go to 'Settings' > 'Add Server'."
 echo "------------------------------------------------------------------"
 
 # 11. Prompt for Marzban installation
