@@ -1,89 +1,67 @@
 #!/bin/bash
+# MARZ-X installer for consolidated repo (backend + frontend dist in root)
+
 set -euo pipefail
 
 # --- Configuration ---
-APP_PORT=3000
-TARGET_PORT=6104
+APP_PORT=3000          # internal app port (container)
+TARGET_PORT=6104       # external HTTPS port
 ADMIN_EMAIL="admin@admin.com"
 MARZBAN_ADMIN_USER="admin"
 # ---------------------
 
-# 0. Ensure root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root (use sudo)"
   exit 1
 fi
 
-# 1. Domain
 read -p "Enter your domain name (e.g., dashboard.example.com): " DOMAIN_NAME
 if [ -z "$DOMAIN_NAME" ]; then
-    echo "Domain name is required!"
-    exit 1
+  echo "Domain name is required!"
+  exit 1
 fi
 
-echo "--- Cleaning old Docker/containerd packages ---"
-apt remove -y docker-compose-v2 docker.io containerd containerd.io docker-doc runc || true
-apt autoremove -y
+echo "--- Updating System & Installing Dependencies ---"
 apt update
-
-echo "--- Installing Docker (official repo), Nginx, Certbot, deps ---"
-apt install -y ca-certificates curl gnupg
-install -m 0755 -d /etc/apt/keyrings
-if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-fi
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
-apt update
-apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin nginx certbot python3-certbot-nginx jq openssl expect
-systemctl enable --now docker
+apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx curl jq openssl expect ufw
 
 echo "--- Creating Dockerfiles ---"
-mkdir -p backend frontend
-
-cat <<'DOCKERFILE' > backend/Dockerfile
-FROM node:18-alpine
-WORKDIR /app
-RUN apk add --no-cache openssl
-COPY package*.json ./
-RUN npm install --production
-COPY . .
-RUN npx prisma generate
-EXPOSE 5000
-CMD ["npm", "start"]
-DOCKERFILE
-
-cat <<'DOCKERFILE' > frontend/Dockerfile
+# Backend + frontend build in one image
+cat <<'DOCKERFILE' > Dockerfile
 FROM node:18-alpine as build
 WORKDIR /app
+RUN apk add --no-cache python3 make g++ openssl
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 COPY . .
+# Build frontend (assumes src -> dist)
 RUN npm run build
+# Generate Prisma client
+RUN npx prisma generate
 
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-RUN echo 'server { \
-    listen 80; \
-    location / { \
-        root /usr/share/nginx/html; \
-        index index.html index.htm; \
-        try_files $uri $uri/ /index.html; \
-    } \
-    location /api { \
-        proxy_pass http://backend:5000; \
-        proxy_http_version 1.1; \
-        proxy_set_header Upgrade $http_upgrade; \
-        proxy_set_header Connection "upgrade"; \
-        proxy_set_header Host $host; \
-    } \
-}' > /etc/nginx/conf.d/default.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+FROM node:18-alpine as app
+WORKDIR /app
+RUN apk add --no-cache openssl
+COPY --from=build /app/package*.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/src ./src
+COPY --from=build /app/prisma.config.ts ./prisma.config.ts
+COPY --from=build /app/.env /app/.env
+EXPOSE 5000
+CMD ["npm", "run", "start"]
+
+FROM nginx:alpine as web
+WORKDIR /usr/share/nginx/html
+COPY --from=build /app/dist ./
+# Nginx config added at runtime via bind mount
 DOCKERFILE
 
 echo "--- Generating Production .env File ---"
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
+
 cat <<ENVFILE > .env
 PORT=5000
 NODE_ENV=production
@@ -100,40 +78,80 @@ ENVFILE
 echo "--- Configuring Docker Compose ---"
 cat <<COMPOSE > docker-compose.yml
 services:
-  backend:
-    build: ./backend
-    container_name: marzban_backend
+  app:
+    build:
+      context: .
+      target: app
+    container_name: marzban_app
     restart: always
     env_file: .env
     volumes:
       - marzban_data:/app/data
     ports:
       - "5000:5000"
+    depends_on:
+      - db_push
 
-  frontend:
-    build: ./frontend
-    container_name: marzban_frontend
+  db_push:
+    build:
+      context: .
+      target: app
+    entrypoint: ["npx", "prisma", "db", "push"]
+    env_file: .env
+    volumes:
+      - marzban_data:/app/data
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      target: web
+    container_name: marzban_web
     restart: always
     ports:
       - "127.0.0.1:${APP_PORT}:80"
     depends_on:
-      - backend
+      - app
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
 volumes:
   marzban_data:
 COMPOSE
 
+echo "--- Writing nginx.conf ---"
+cat <<NGINX > nginx.conf
+server {
+    listen 80;
+    server_name _;
+
+    # Static files
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://app:5000/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+    }
+}
+NGINX
+
 echo "--- Building and Starting Application ---"
-docker compose down || true
+docker compose down
 docker compose up -d --build
 
-echo "--- Initializing Database Tables ---"
-sleep 10
-docker compose run --rm backend npx prisma db push
-docker compose restart backend
+echo "--- Verifying DB migration (db push) ---"
+docker compose logs db_push
 
-echo "--- Configuring Nginx ---"
-cat <<NGINX > /etc/nginx/sites-available/$DOMAIN_NAME
+echo "--- Configuring Nginx (host) ---"
+cat <<HOSTNGINX > /etc/nginx/sites-available/$DOMAIN_NAME
 server {
     listen 80;
     server_name $DOMAIN_NAME;
@@ -146,7 +164,7 @@ server {
         proxy_set_header Host \$host;
     }
 }
-NGINX
+HOSTNGINX
 
 ln -sf /etc/nginx/sites-available/$DOMAIN_NAME /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
@@ -154,10 +172,11 @@ nginx -t && systemctl reload nginx
 
 echo "--- Setting up SSL (HTTPS) ---"
 certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $ADMIN_EMAIL --redirect
+
 echo "--- Moving SSL to Port $TARGET_PORT ---"
 sed -i "s/listen 443 ssl/listen $TARGET_PORT ssl/g" /etc/nginx/sites-available/$DOMAIN_NAME
-ufw allow $TARGET_PORT/tcp || true
-ufw allow 80/tcp || true
+ufw allow $TARGET_PORT/tcp
+ufw allow 80/tcp
 systemctl reload nginx
 
 echo "------------------------------------------------------------------"
@@ -171,10 +190,8 @@ read -p "Do you want to install Marzban on this server? (y/N): " INSTALL_MARZBAN
 INSTALL_MARZBAN=${INSTALL_MARZBAN,,}
 
 if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
-  echo "--- Installing Marzban (detached; ignoring Ctrl+C during install) ---"
-  trap 'echo "Ignoring Ctrl+C during Marzban install...";' INT
+  echo "--- Installing Marzban ---"
   sudo bash -c "$(curl -sL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban.sh)" @ install
-  trap - INT
 
   echo "--- Preparing certs for Marzban ---"
   mkdir -p /var/lib/marzban/certs
@@ -249,11 +266,8 @@ HOOK
     echo "WARNING: ./template/index.html not found; skipping template copy."
   fi
 
-  echo "--- Restarting Marzban (detached) ---"
-  if [ -d "/opt/marzban" ]; then
-    (cd /opt/marzban && docker compose up -d) || true
-  fi
-  marzban restart || true
+  echo "--- Restarting Marzban ---"
+  marzban restart
 
   echo "------------------------------------------------------------------"
   echo "✅ Marzban installation and configuration complete."
