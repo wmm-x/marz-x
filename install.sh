@@ -17,7 +17,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # 2. Ask for Domain Name
-read -p "Enter your domain name (e.g., dashboard.example.com): " DOMAIN_NAME
+read -p "Enter your domain name (e.g., dashboard.example. com): " DOMAIN_NAME
 if [ -z "$DOMAIN_NAME" ]; then
     echo "Domain name is required!"
     exit 1
@@ -27,15 +27,22 @@ echo "--- Updating System & Installing Dependencies ---"
 apt update
 apt install -y nginx certbot python3-certbot-nginx curl jq openssl
 
-# 3. Install Node.js if not present
+# 3. Install Node. js 20.x LTS if not present
 if ! command -v node &> /dev/null; then
-    echo "--- Installing Node.js ---"
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+    echo "--- Installing Node.js 20.x LTS ---"
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt install -y nodejs
+else
+    NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
+    if [ "$NODE_VERSION" -lt 20 ]; then
+        echo "--- Upgrading Node.js to 20.x LTS ---"
+        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        apt install -y nodejs
+    fi
 fi
 
 # 4. Generate Production . env File
-echo "--- Generating Production . env File ---"
+echo "--- Generating Production .env File ---"
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 
@@ -72,11 +79,11 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=$SCRIPT_DIR
-ExecStart=/usr/bin/node $SCRIPT_DIR/src/index.js
+ExecStart=/usr/bin/node $SCRIPT_DIR/src/index. js
 Restart=on-failure
 RestartSec=10
 Environment=NODE_ENV=production
-EnvironmentFile=$SCRIPT_DIR/. env
+EnvironmentFile=$SCRIPT_DIR/.env
 
 [Install]
 WantedBy=multi-user.target
@@ -160,7 +167,7 @@ if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
 DOMAIN_DIR=$(basename "$(dirname "$(readlink -f "$RENEWED_LINEAGE")")")
 SRC="/etc/letsencrypt/live/$DOMAIN_DIR"
 DEST="/var/lib/marzban/certs"
-if [ -f "$SRC/fullchain.pem" ] && [ -f "$SRC/privkey.pem" ]; then
+if [ -f "$SRC/fullchain. pem" ] && [ -f "$SRC/privkey.pem" ]; then
   cp "$SRC/fullchain.pem" "$DEST/fullchain.pem"
   cp "$SRC/privkey.pem" "$DEST/privkey. pem"
   chmod 600 "$DEST/privkey. pem"
@@ -192,16 +199,16 @@ HOOK
     fi
 
     # SUDO admin credentials
-    if grep -q '^[[:space:]]*#\s*SUDO_USERNAME' "$MARZBAN_ENV"; then
-      sed -i 's|^[[: space:]]*#\s*SUDO_USERNAME *=.*|SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"|' "$MARZBAN_ENV"
+    if grep -q '^[[: space:]]*#\s*SUDO_USERNAME' "$MARZBAN_ENV"; then
+      sed -i 's|^[[:space:]]*#\s*SUDO_USERNAME *=.*|SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"|' "$MARZBAN_ENV"
     elif grep -q '^SUDO_USERNAME' "$MARZBAN_ENV"; then
       sed -i 's|^SUDO_USERNAME *=.*|SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"|' "$MARZBAN_ENV"
     else
       echo 'SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"' >> "$MARZBAN_ENV"
     fi
 
-    if grep -q '^[[:space:]]*#\s*SUDO_PASSWORD' "$MARZBAN_ENV"; then
-      sed -i 's|^[[:space:]]*#\s*SUDO_PASSWORD *=.*|SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"|' "$MARZBAN_ENV"
+    if grep -q '^[[: space:]]*#\s*SUDO_PASSWORD' "$MARZBAN_ENV"; then
+      sed -i 's|^[[: space:]]*#\s*SUDO_PASSWORD *=.*|SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"|' "$MARZBAN_ENV"
     elif grep -q '^SUDO_PASSWORD' "$MARZBAN_ENV"; then
       sed -i 's|^SUDO_PASSWORD *=.*|SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"|' "$MARZBAN_ENV"
     else
@@ -214,7 +221,7 @@ HOOK
   echo "--- Deploying subscription template ---"
   mkdir -p /var/lib/marzban/templates/subscription
   if [ -f "$SCRIPT_DIR/template/index.html" ]; then
-    cp "$SCRIPT_DIR/template/index.html" /var/lib/marzban/templates/subscription/index.html
+    cp "$SCRIPT_DIR/template/index.html" /var/lib/marzban/templates/subscription/index. html
   else
     echo "WARNING: $SCRIPT_DIR/template/index.html not found; skipping template copy."
   fi
