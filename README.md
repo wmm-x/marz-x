@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/wmm-x/marz-x">
-    <img src="https://raw.githubusercontent.com/wmm-x/marz-x/efc8cb99b3192b7173f6d3054f3b05eff899f5d9/template/logo.png" alt="Marz-X Logo" width="500">
+    <img src="https://raw.githubusercontent.com/wmm-x/marz-x/6b104821b0dfab426d92cc198710e64eb3ac62d7/template/logo.png" alt="Marz-X Logo" width="500">
   </a>
   <h1>Marz-X Dashboard</h1>
   <p>
