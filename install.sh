@@ -98,6 +98,9 @@ systemctl daemon-reload
 systemctl enable marzban-dashboard
 systemctl restart marzban-dashboard
 
+#!/bin/bash
+# ... existing content above ...
+
 # 8) Nginx for frontend (dist) and backend proxy
 echo "--- Configuring Nginx ---"
 cat <<NGINX > /etc/nginx/sites-available/$DOMAIN_NAME
@@ -126,7 +129,16 @@ NGINX
 
 ln -sf /etc/nginx/sites-available/$DOMAIN_NAME /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
+
+# ensure dist is readable by nginx
+echo "--- Fixing dist permissions for Nginx ---"
+chown -R www-data:www-data "$SCRIPT_DIR/dist"
+find "$SCRIPT_DIR/dist" -type d -exec chmod 755 {} \;
+find "$SCRIPT_DIR/dist" -type f -exec chmod 644 {} \;
+
 nginx -t && systemctl reload nginx
+
+# ... rest of script unchanged ...
 
 # 9) SSL on TARGET_PORT
 echo "--- Setting up SSL (HTTPS) ---"
