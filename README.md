@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="https://via.placeholder.com/200x200?text=Marz-X+Logo" alt="Marz-X Logo" width="200" height="auto">
+  <img src="https://raw.githubusercontent.com/wmm-x/marz-x/efc8cb99b3192b7173f6d3054f3b05eff899f5d9/template/logo.png" alt="Marz-X Logo" width="200" height="auto">
   <br>
-  <h1>Marz-X Dashboard</h1>
+  <h1>Marz-X</h1>
   <p>
     <b>A modern and efficient management dashboard for Marzban</b>
   </p>
@@ -36,9 +36,7 @@ This project includes an **automatic installation script** that sets up Docker, 
 ## 📸 Screenshots
 
 <div align="center">
-  <img src="https://via.placeholder.com/800x400?text=Dashboard+Home+Screenshot" alt="Dashboard Home" width="100%">
-  <br><br>
-  <img src="https://via.placeholder.com/800x400?text=User+Management+Screenshot" alt="User Management" width="100%">
+  <img src="https://raw.githubusercontent.com/wmm-x/marz-x/efc8cb99b3192b7173f6d3054f3b05eff899f5d9/template/dashboard.png" alt="Dashboard Home" width="100%">
 </div>
 
 ---
