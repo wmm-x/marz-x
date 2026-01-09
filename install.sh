@@ -24,8 +24,8 @@ echo "--- Updating System & Installing Dependencies ---"
 apt update
 apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx curl jq openssl expect
 
-# 3. Create Dockerfile (Unified App)
-echo "--- Creating Dockerfile ---"
+# 3. Create Backend Dockerfile
+echo "--- Creating Backend Dockerfile ---"
 cat <<'DOCKERFILE' > Dockerfile
 FROM node:18-alpine
 WORKDIR /app
@@ -34,11 +34,12 @@ WORKDIR /app
 RUN apk add --no-cache openssl
 
 # Copy package files
-COPY package*. json ./
+COPY package*.json ./
 RUN npm install --production
 
 # Copy application files
-COPY . .
+COPY prisma ./prisma
+COPY src ./src
 
 # Generate Prisma client
 RUN npx prisma generate
@@ -46,10 +47,44 @@ RUN npx prisma generate
 # Expose port
 EXPOSE 5000
 
-CMD ["npm", "start"]
+CMD ["node", "src/index. js"]
 DOCKERFILE
 
-# 4. Generate Production . env File
+# 4. Create Frontend Dockerfile with FIXED Nginx Config
+echo "--- Creating Frontend Dockerfile ---"
+cat <<'DOCKERFILE' > Dockerfile.web
+FROM nginx:alpine
+
+COPY dist /usr/share/nginx/html
+
+# CRITICAL:  This Nginx config preserves /api/ prefix when proxying
+RUN echo 'server { \
+    listen 80; \
+    server_name _; \
+    root /usr/share/nginx/html; \
+    index index. html; \
+    \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+    \
+    location /api/ { \
+        proxy_pass http://app:5000/api/; \
+        proxy_http_version 1.1; \
+        proxy_set_header Upgrade $http_upgrade; \
+        proxy_set_header Connection "upgrade"; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+DOCKERFILE
+
+# 5. Generate Production . env File
 echo "--- Generating Production .env File ---"
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
@@ -67,36 +102,58 @@ MARZBAN_ADMIN="MarzbanAdminx"
 MARZBAN_ADMIN_PASS="G\$2WuaYJW@THP! 9"
 ENVFILE
 
-# 5. Create docker-compose.yml
+# 6. Create docker-compose.yml
 echo "--- Configuring Docker Compose ---"
-cat <<COMPOSE > docker-compose. yml
+cat <<COMPOSE > docker-compose.yml
 services:
-  app: 
-    build: .
+  app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
     container_name: marzban_app
     restart: always
     env_file: .env
     volumes:
       - marzban_data:/app/data
-    ports:
-      - "127.0.0.1:${APP_PORT}:5000"
+    ports: 
+      - "5000:5000"
+    networks:
+      - marzban_network
 
-volumes:
+  web:
+    build:
+      context:  .
+      dockerfile: Dockerfile. web
+    container_name: marzban_web
+    restart:  always
+    ports:
+      - "127.0.0.1:${APP_PORT}:80"
+    depends_on:
+      - app
+    networks:
+      - marzban_network
+
+volumes: 
   marzban_data: 
+
+networks:
+  marzban_network:
+    driver: bridge
 COMPOSE
 
-# 6. Build and Start Docker
+# 7. Build and Start Docker
 echo "--- Building and Starting Application ---"
 docker compose down
 docker compose up -d --build
 
-# 7. Initialize Database (Prevents 502 Error)
+# 8. Initialize Database (Prevents 502 Error)
 echo "--- Initializing Database Tables ---"
-sleep 10
+sleep 15
 docker compose run --rm app npx prisma db push
 docker compose restart app
+sleep 5
 
-# 8. Configure Nginx (Pre-SSL)
+# 9. Configure Nginx (Pre-SSL)
 echo "--- Configuring Nginx ---"
 cat <<NGINX > /etc/nginx/sites-available/$DOMAIN_NAME
 server {
@@ -112,6 +169,7 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
     }
 }
 NGINX
@@ -120,7 +178,7 @@ ln -sf /etc/nginx/sites-available/$DOMAIN_NAME /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 
-# 9. Setup SSL & Switch to Port 6104
+# 10. Setup SSL & Switch to Port 6104
 echo "--- Setting up SSL (HTTPS) ---"
 certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $ADMIN_EMAIL --redirect
 
@@ -138,7 +196,7 @@ echo "Username: admin@admin.com"
 echo "Password: admin123"
 echo "------------------------------------------------------------------"
 
-# 10. Prompt for Marzban installation
+# 11. Prompt for Marzban installation
 read -p "Do you want to install Marzban on this server? (y/N): " INSTALL_MARZBAN
 INSTALL_MARZBAN=${INSTALL_MARZBAN,,}  # to lowercase
 
@@ -148,7 +206,7 @@ if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
 
   echo "--- Preparing certs for Marzban ---"
   mkdir -p /var/lib/marzban/certs
-  cp /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem /var/lib/marzban/certs/fullchain.pem
+  cp /etc/letsencrypt/live/$DOMAIN_NAME/fullchain. pem /var/lib/marzban/certs/fullchain.pem
   cp /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem /var/lib/marzban/certs/privkey.pem
   chmod 600 /var/lib/marzban/certs/privkey.pem
   if id -u marzban >/dev/null 2>&1; then
@@ -163,7 +221,7 @@ DOMAIN_DIR=$(basename "$(dirname "$(readlink -f "$RENEWED_LINEAGE")")")
 SRC="/etc/letsencrypt/live/$DOMAIN_DIR"
 DEST="/var/lib/marzban/certs"
 if [ -f "$SRC/fullchain.pem" ] && [ -f "$SRC/privkey.pem" ]; then
-  cp "$SRC/fullchain.pem" "$DEST/fullchain.pem"
+  cp "$SRC/fullchain. pem" "$DEST/fullchain.pem"
   cp "$SRC/privkey.pem" "$DEST/privkey.pem"
   chmod 600 "$DEST/privkey.pem"
   if id -u marzban >/dev/null 2>&1; then
@@ -195,7 +253,7 @@ HOOK
 
     # SUDO admin credentials (uncomment or add)
     if grep -q '^[[:space:]]*#\s*SUDO_USERNAME' "$MARZBAN_ENV"; then
-      sed -i 's|^[[: space:]]*#\s*SUDO_USERNAME *=.*|SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"|' "$MARZBAN_ENV"
+      sed -i 's|^[[:space:]]*#\s*SUDO_USERNAME *=.*|SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"|' "$MARZBAN_ENV"
     elif grep -q '^SUDO_USERNAME' "$MARZBAN_ENV"; then
       sed -i 's|^SUDO_USERNAME *=.*|SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"|' "$MARZBAN_ENV"
     else
