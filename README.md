@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/wmm-x/marz-x">
-    <img src="https://raw.githubusercontent.com/wmm-x/marz-x/6349a7f2403c733b169bd2c8e7a834b8458d7045/template/logo.png" alt="Marz-X Logo" width="500">
+    <img src="https://raw.githubusercontent.com/wmm-x/marz-x/6349a7f2403c733b169bd2c8e7a834b8458d7045/template/logo.png" alt="Marz-X Logo">
   </a>
   <br><br>
   <h1>Marz-X Dashboard</h1>
@@ -67,7 +67,7 @@ apt update && apt install -y git && rm -rf marz-x && git clone https://github.co
 ## Acknowledgements
 
 This project is an advanced, customizable UI built on top of the official **Marzban** project.
-Special thanks to **Gozargah** for creating and maintaining Marzban, the core that makes this dashboard possible: <a href="https://github.com/wmm-x">Marzban GitHub</a>
+Special thanks to **Gozargah** for creating and maintaining Marzban, the core that makes this dashboard possible: <a href="https://github.com/Gozargah/Marzban">Marzban GitHub</a>
 
 Disclaimer: Marz-X is community-driven and is not affiliated with or endorsed by the Marzban core team.
 
