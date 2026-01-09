@@ -2,44 +2,47 @@
 set -euo pipefail
 
 # --- Configuration ---
-APP_PORT=3000          # Internal Docker Port for Frontend
-TARGET_PORT=6104       # EXTERNAL Port for Dashboard (HTTPS)
-ADMIN_EMAIL="admin@admin.com" # Default email for Let's Encrypt
+APP_PORT=3000
+TARGET_PORT=6104
+ADMIN_EMAIL="admin@admin.com"
 MARZBAN_ADMIN_USER="admin"
 # ---------------------
 
-# 0. Clean conflicting Docker/containerd packages
-echo "--- Cleaning conflicting Docker/containerd packages ---"
-apt remove -y containerd containerd.io docker.io docker-doc docker-compose docker-compose-v2 runc || true
-apt autoremove -y
-apt update
-
-# 1. Check for Root
+# 0. Ensure root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root (use sudo)"
   exit 1
 fi
 
-# 2. Ask for Domain Name
+# 1. Domain
 read -p "Enter your domain name (e.g., dashboard.example.com): " DOMAIN_NAME
 if [ -z "$DOMAIN_NAME" ]; then
     echo "Domain name is required!"
     exit 1
 fi
 
-echo "--- Installing Docker, Nginx, Certbot, and deps ---"
-apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx curl jq openssl expect
+echo "--- Cleaning old Docker/containerd packages ---"
+apt remove -y docker-compose-v2 docker.io containerd containerd.io docker-doc runc || true
+apt autoremove -y
+apt update
+
+echo "--- Installing Docker (official repo), Nginx, Certbot, deps ---"
+apt install -y ca-certificates curl gnupg
+install -m 0755 -d /etc/apt/keyrings
+if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+fi
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+apt update
+apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin nginx certbot python3-certbot-nginx jq openssl expect
 systemctl enable --now docker
 
-# 3. Create Dockerfiles (Includes OpenSSL Fix)
 echo "--- Creating Dockerfiles ---"
 mkdir -p backend frontend
 
-# Backend Dockerfile
 cat <<'DOCKERFILE' > backend/Dockerfile
 FROM node:18-alpine
 WORKDIR /app
-# Install OpenSSL (Required for Prisma on Alpine)
 RUN apk add --no-cache openssl
 COPY package*.json ./
 RUN npm install --production
@@ -49,7 +52,6 @@ EXPOSE 5000
 CMD ["npm", "start"]
 DOCKERFILE
 
-# Frontend Dockerfile
 cat <<'DOCKERFILE' > frontend/Dockerfile
 FROM node:18-alpine as build
 WORKDIR /app
@@ -60,7 +62,6 @@ RUN npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-# Custom Nginx config for React Router & API Proxy
 RUN echo 'server { \
     listen 80; \
     location / { \
@@ -80,11 +81,9 @@ EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 DOCKERFILE
 
-# 4. Generate Production .env File
 echo "--- Generating Production .env File ---"
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
-
 cat <<ENVFILE > .env
 PORT=5000
 NODE_ENV=production
@@ -98,7 +97,6 @@ MARZBAN_ADMIN="MarzbanAdminx"
 MARZBAN_ADMIN_PASS="G\$2WuaYJW@THP!9"
 ENVFILE
 
-# 5. Create docker-compose.yml
 echo "--- Configuring Docker Compose ---"
 cat <<COMPOSE > docker-compose.yml
 services:
@@ -125,18 +123,15 @@ volumes:
   marzban_data:
 COMPOSE
 
-# 6. Build and Start Docker
 echo "--- Building and Starting Application ---"
 docker compose down || true
 docker compose up -d --build
 
-# 7. Initialize Database (Prevents 502 Error)
 echo "--- Initializing Database Tables ---"
 sleep 10
 docker compose run --rm backend npx prisma db push
 docker compose restart backend
 
-# 8. Configure Nginx (Pre-SSL)
 echo "--- Configuring Nginx ---"
 cat <<NGINX > /etc/nginx/sites-available/$DOMAIN_NAME
 server {
@@ -157,15 +152,12 @@ ln -sf /etc/nginx/sites-available/$DOMAIN_NAME /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 
-# 9. Setup SSL & Switch to Port 6104
 echo "--- Setting up SSL (HTTPS) ---"
 certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $ADMIN_EMAIL --redirect
-
 echo "--- Moving SSL to Port $TARGET_PORT ---"
 sed -i "s/listen 443 ssl/listen $TARGET_PORT ssl/g" /etc/nginx/sites-available/$DOMAIN_NAME
-
 ufw allow $TARGET_PORT/tcp || true
-ufw allow 80/tcp || true # Keep 80 open for Certbot renewals
+ufw allow 80/tcp || true
 systemctl reload nginx
 
 echo "------------------------------------------------------------------"
@@ -175,9 +167,8 @@ echo "Username: admin@admin.com"
 echo "Password: admin123"
 echo "------------------------------------------------------------------"
 
-# 10. Prompt for Marzban installation (Ctrl+C-safe)
 read -p "Do you want to install Marzban on this server? (y/N): " INSTALL_MARZBAN
-INSTALL_MARZBAN=${INSTALL_MARZBAN,,}  # to lowercase
+INSTALL_MARZBAN=${INSTALL_MARZBAN,,}
 
 if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
   echo "--- Installing Marzban (detached; ignoring Ctrl+C during install) ---"
