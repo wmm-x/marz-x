@@ -1,160 +1,129 @@
 #!/bin/bash
 
-# --- Configuration ---
-APP_PORT=3000          # Internal Docker Port for Application
-TARGET_PORT=6104       # EXTERNAL Port for Dashboard (HTTPS)
-ADMIN_EMAIL="admin@admin.com" # Default email for Let's Encrypt
+# ==================================================
+# MARZ-X FULL INSTALL SCRIPT (NEW STRUCTURE)
+# Repo Structure:
+# ├── dist/        (frontend build)
+# ├── src/         (backend)
+# ├── prisma/
+# ├── template/
+# ==================================================
+
+# -------- CONFIG --------
+APP_PORT=3000
+TARGET_PORT=6104
+ADMIN_EMAIL="admin@admin.com"
 MARZBAN_ADMIN_USER="admin"
-# ---------------------
+# ------------------------
 
-# 1. Check for Root
+set -e
+
+# 1. ROOT CHECK
 if [ "$EUID" -ne 0 ]; then
-  echo "Please run as root (use sudo)"
-  exit
+  echo "❌ Please run as root"
+  exit 1
 fi
 
-# 2. Ask for Domain Name
-read -p "Enter your domain name (e.g., dashboard.example.com): " DOMAIN_NAME
+# 2. DOMAIN INPUT
+read -p "Enter domain name (e.g. dashboard.example.com): " DOMAIN_NAME
 if [ -z "$DOMAIN_NAME" ]; then
-    echo "Domain name is required!"
-    exit 1
+  echo "❌ Domain name required"
+  exit 1
 fi
 
-echo "--- Updating System & Installing Dependencies ---"
-apt update
-apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx curl jq openssl expect
+echo "🚀 Starting MARZ-X installation..."
 
-# 3. Create Backend Dockerfile
-echo "--- Creating Backend Dockerfile ---"
-cat <<'DOCKERFILE' > Dockerfile
+# 3. SYSTEM DEPENDENCIES
+apt update
+apt install -y \
+  docker.io \
+  docker-compose-v2 \
+  nginx \
+  certbot \
+  python3-certbot-nginx \
+  curl \
+  jq \
+  openssl \
+  expect
+
+systemctl enable docker --now
+
+# 4. BACKEND DOCKERFILE
+echo "📦 Creating backend Dockerfile..."
+
+mkdir -p backend
+
+cat <<'DOCKERFILE' > backend/Dockerfile
 FROM node:18-alpine
+
 WORKDIR /app
 
-# Install OpenSSL (Required for Prisma on Alpine)
 RUN apk add --no-cache openssl
 
-# Copy package files
 COPY package*.json ./
 RUN npm install --production
 
-# Copy application files
-COPY prisma ./prisma
 COPY src ./src
+COPY prisma ./prisma
+COPY dist ./dist
+COPY prisma.config.ts ./
 
-# Generate Prisma client
 RUN npx prisma generate
 
-# Expose port
 EXPOSE 5000
-
-CMD ["node", "src/index. js"]
+CMD ["npm", "start"]
 DOCKERFILE
 
-# 4. Create Frontend Dockerfile with FIXED Nginx Config
-echo "--- Creating Frontend Dockerfile ---"
-cat <<'DOCKERFILE' > Dockerfile.web
-FROM nginx:alpine
+# 5. ENV FILE
+echo "🔐 Generating .env..."
 
-COPY dist /usr/share/nginx/html
-
-# CRITICAL:  This Nginx config preserves /api/ prefix when proxying
-RUN echo 'server { \
-    listen 80; \
-    server_name _; \
-    root /usr/share/nginx/html; \
-    index index. html; \
-    \
-    location / { \
-        try_files $uri $uri/ /index.html; \
-    } \
-    \
-    location /api/ { \
-        proxy_pass http://app:5000/api/; \
-        proxy_http_version 1.1; \
-        proxy_set_header Upgrade $http_upgrade; \
-        proxy_set_header Connection "upgrade"; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-        proxy_set_header X-Forwarded-Proto $scheme; \
-    } \
-}' > /etc/nginx/conf.d/default.conf
-
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-DOCKERFILE
-
-# 5. Generate Production . env File
-echo "--- Generating Production .env File ---"
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 
-cat <<ENVFILE > .env
+cat <<ENV > .env
 PORT=5000
 NODE_ENV=production
 DATABASE_URL="file:/app/data/prod.db"
-JWT_SECRET="${JWT_SECRET}"
-ENCRYPTION_KEY="${ENCRYPTION_KEY}"
-ADMIN_EMAIL="${ADMIN_EMAIL}"
-ADMIN_PASSWORD="admin123"
-ADMIN_NAME="Administrator"
-MARZBAN_ADMIN="MarzbanAdminx"
-MARZBAN_ADMIN_PASS="G\$2WuaYJW@THP! 9"
-ENVFILE
+JWT_SECRET="$JWT_SECRET"
+ENCRYPTION_KEY="$ENCRYPTION_KEY"
 
-# 6. Create docker-compose.yml
-echo "--- Configuring Docker Compose ---"
+ADMIN_EMAIL="$ADMIN_EMAIL"
+ADMIN_NAME="Administrator"
+ADMIN_PASSWORD="admin123"
+ENV
+
+# 6. DOCKER COMPOSE
+echo "🐳 Creating docker-compose.yml..."
+
 cat <<COMPOSE > docker-compose.yml
 services:
   app:
-    build: 
-      context: .
-      dockerfile: Dockerfile
-    container_name: marzban_app
+    build: ./backend
+    container_name: marz_x_app
     restart: always
     env_file: .env
     volumes:
       - marzban_data:/app/data
-    ports: 
-      - "5000:5000"
-    networks:
-      - marzban_network
-
-  web:
-    build:
-      context:  .
-      dockerfile: Dockerfile. web
-    container_name: marzban_web
-    restart:  always
     ports:
-      - "127.0.0.1:${APP_PORT}:80"
-    depends_on:
-      - app
-    networks:
-      - marzban_network
+      - "127.0.0.1:${APP_PORT}:5000"
 
-volumes: 
-  marzban_data: 
-
-networks:
-  marzban_network:
-    driver: bridge
+volumes:
+  marzban_data:
 COMPOSE
 
-# 7. Build and Start Docker
-echo "--- Building and Starting Application ---"
-docker compose down
+# 7. BUILD & START
+echo "🏗 Building application..."
+docker compose down || true
 docker compose up -d --build
 
-# 8. Initialize Database (Prevents 502 Error)
-echo "--- Initializing Database Tables ---"
-sleep 15
-docker compose run --rm app npx prisma db push
-docker compose restart app
-sleep 5
+# 8. INIT PRISMA
+echo "🗄 Initializing database..."
+sleep 10
+docker compose exec app npx prisma db push
 
-# 9. Configure Nginx (Pre-SSL)
-echo "--- Configuring Nginx ---"
+# 9. NGINX (HTTP)
+echo "🌐 Configuring Nginx..."
+
 cat <<NGINX > /etc/nginx/sites-available/$DOMAIN_NAME
 server {
     listen 80;
@@ -164,12 +133,8 @@ server {
         proxy_pass http://127.0.0.1:${APP_PORT};
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
     }
 }
 NGINX
@@ -178,120 +143,55 @@ ln -sf /etc/nginx/sites-available/$DOMAIN_NAME /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 
-# 10. Setup SSL & Switch to Port 6104
-echo "--- Setting up SSL (HTTPS) ---"
-certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $ADMIN_EMAIL --redirect
+# 10. SSL SETUP
+echo "🔐 Issuing SSL certificate..."
+certbot --nginx -d $DOMAIN_NAME \
+  --non-interactive \
+  --agree-tos \
+  -m $ADMIN_EMAIL \
+  --redirect
 
-echo "--- Moving SSL to Port $TARGET_PORT ---"
-sed -i "s/listen 443 ssl/listen $TARGET_PORT ssl/g" /etc/nginx/sites-available/$DOMAIN_NAME
+# 11. MOVE TO CUSTOM PORT
+echo "🔄 Switching HTTPS to port $TARGET_PORT..."
+sed -i "s/listen 443 ssl;/listen $TARGET_PORT ssl;/g" \
+  /etc/nginx/sites-available/$DOMAIN_NAME
 
 ufw allow $TARGET_PORT/tcp
-ufw allow 80/tcp # Keep 80 open for Certbot renewals
+ufw allow 80/tcp
 systemctl reload nginx
 
-echo "------------------------------------------------------------------"
-echo "✅ MARZ-X Dashboard Installation Complete!"
-echo "Dashboard is live at: https://$DOMAIN_NAME:$TARGET_PORT"
-echo "Username: admin@admin.com"
-echo "Password: admin123"
-echo "------------------------------------------------------------------"
-
-# 11. Prompt for Marzban installation
-read -p "Do you want to install Marzban on this server? (y/N): " INSTALL_MARZBAN
-INSTALL_MARZBAN=${INSTALL_MARZBAN,,}  # to lowercase
+# 12. MARZBAN OPTIONAL
+read -p "Install Marzban on this server? (y/N): " INSTALL_MARZBAN
+INSTALL_MARZBAN=${INSTALL_MARZBAN,,}
 
 if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
-  echo "--- Installing Marzban ---"
-  sudo bash -c "$(curl -sL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban. sh)" @ install
+  echo "⚙ Installing Marzban..."
 
-  echo "--- Preparing certs for Marzban ---"
+  bash -c "$(curl -sL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban.sh)" @ install
+
+  echo "📜 Preparing Marzban SSL certs..."
   mkdir -p /var/lib/marzban/certs
-  cp /etc/letsencrypt/live/$DOMAIN_NAME/fullchain. pem /var/lib/marzban/certs/fullchain.pem
-  cp /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem /var/lib/marzban/certs/privkey.pem
+
+  cp /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem /var/lib/marzban/certs/
+  cp /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem /var/lib/marzban/certs/
+
   chmod 600 /var/lib/marzban/certs/privkey.pem
-  if id -u marzban >/dev/null 2>&1; then
-    chown -R marzban:marzban /var/lib/marzban/certs || true
-  fi
+  chown -R marzban:marzban /var/lib/marzban/certs || true
 
-  echo "--- Setting up cert renewal hook ---"
-  mkdir -p /etc/letsencrypt/renewal-hooks/post
-  cat <<'HOOK' > /etc/letsencrypt/renewal-hooks/post/20-marzban-cert-sync. sh
-#!/bin/bash
-DOMAIN_DIR=$(basename "$(dirname "$(readlink -f "$RENEWED_LINEAGE")")")
-SRC="/etc/letsencrypt/live/$DOMAIN_DIR"
-DEST="/var/lib/marzban/certs"
-if [ -f "$SRC/fullchain.pem" ] && [ -f "$SRC/privkey.pem" ]; then
-  cp "$SRC/fullchain. pem" "$DEST/fullchain.pem"
-  cp "$SRC/privkey.pem" "$DEST/privkey.pem"
-  chmod 600 "$DEST/privkey.pem"
-  if id -u marzban >/dev/null 2>&1; then
-    chown -R marzban:marzban "$DEST" || true
-  fi
-  systemctl restart marzban || true
-fi
-HOOK
-  chmod +x /etc/letsencrypt/renewal-hooks/post/20-marzban-cert-sync.sh
-
-  echo "--- Configuring Marzban . env for SSL and admin ---"
-  MARZBAN_ENV="/opt/marzban/. env"
-  MARZBAN_SUDO_PASS=$(openssl rand -base64 16 | tr -d '\n')
-  if [ -f "$MARZBAN_ENV" ]; then
-    sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_CERTFILE *=.*|UVICORN_SSL_CERTFILE="/var/lib/marzban/certs/fullchain.pem"|' "$MARZBAN_ENV"
-    sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_KEYFILE *=.*|UVICORN_SSL_KEYFILE="/var/lib/marzban/certs/privkey.pem"|' "$MARZBAN_ENV"
-
-    # Custom templates (ensure directory and subscription page are set)
-    if !  grep -q '^CUSTOM_TEMPLATES_DIRECTORY=' "$MARZBAN_ENV"; then
-      echo 'CUSTOM_TEMPLATES_DIRECTORY="/var/lib/marzban/templates/"' >> "$MARZBAN_ENV"
-    else
-      sed -i 's|^CUSTOM_TEMPLATES_DIRECTORY=.*|CUSTOM_TEMPLATES_DIRECTORY="/var/lib/marzban/templates/"|' "$MARZBAN_ENV"
-    fi
-    if ! grep -q '^SUBSCRIPTION_PAGE_TEMPLATE=' "$MARZBAN_ENV"; then
-      echo 'SUBSCRIPTION_PAGE_TEMPLATE="subscription/index.html"' >> "$MARZBAN_ENV"
-    else
-      sed -i 's|^SUBSCRIPTION_PAGE_TEMPLATE=.*|SUBSCRIPTION_PAGE_TEMPLATE="subscription/index.html"|' "$MARZBAN_ENV"
-    fi
-
-    # SUDO admin credentials (uncomment or add)
-    if grep -q '^[[:space:]]*#\s*SUDO_USERNAME' "$MARZBAN_ENV"; then
-      sed -i 's|^[[:space:]]*#\s*SUDO_USERNAME *=.*|SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"|' "$MARZBAN_ENV"
-    elif grep -q '^SUDO_USERNAME' "$MARZBAN_ENV"; then
-      sed -i 's|^SUDO_USERNAME *=.*|SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"|' "$MARZBAN_ENV"
-    else
-      echo 'SUDO_USERNAME="'"$MARZBAN_ADMIN_USER"'"' >> "$MARZBAN_ENV"
-    fi
-
-    if grep -q '^[[:space:]]*#\s*SUDO_PASSWORD' "$MARZBAN_ENV"; then
-      sed -i 's|^[[:space:]]*#\s*SUDO_PASSWORD *=.*|SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"|' "$MARZBAN_ENV"
-    elif grep -q '^SUDO_PASSWORD' "$MARZBAN_ENV"; then
-      sed -i 's|^SUDO_PASSWORD *=.*|SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"|' "$MARZBAN_ENV"
-    else
-      echo 'SUDO_PASSWORD="'"$MARZBAN_SUDO_PASS"'"' >> "$MARZBAN_ENV"
-    fi
-  else
-    echo "WARNING: $MARZBAN_ENV not found; cannot configure Marzban SSL/admin."
-  fi
-
-  echo "--- Deploying subscription template ---"
+  echo "📄 Deploying subscription template..."
   mkdir -p /var/lib/marzban/templates/subscription
   if [ -f "./template/index.html" ]; then
     cp ./template/index.html /var/lib/marzban/templates/subscription/index.html
-  else
-    echo "WARNING: ./template/index.html not found; skipping template copy."
   fi
 
-  echo "--- Restarting Marzban ---"
+  echo "🔄 Restarting Marzban..."
   marzban restart
-
-  echo "------------------------------------------------------------------"
-  echo "✅ Marzban installation and configuration complete."
-  echo "Admin username: $MARZBAN_ADMIN_USER"
-  echo "Admin password: $MARZBAN_SUDO_PASS"
-  echo "------------------------------------------------------------------"
-  echo "✅ MARZ-X Dashboard Installation Complete!"
-  echo "Dashboard is live at: https://$DOMAIN_NAME:$TARGET_PORT"
-  echo "Username: admin@admin.com"
-  echo "Password: admin123"
-  echo "------------------------------------------------------------------"
-else
-  echo "Skipped Marzban installation."
 fi
+
+# 13. DONE
+echo "=================================================="
+echo "✅ MARZ-X INSTALLATION COMPLETE"
+echo "🌐 Dashboard: https://$DOMAIN_NAME:$TARGET_PORT"
+echo "👤 Login: admin@admin.com"
+echo "🔑 Password: admin123"
+echo "=================================================="
