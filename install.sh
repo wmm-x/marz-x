@@ -8,10 +8,16 @@ ADMIN_EMAIL="admin@admin.com" # Default email for Let's Encrypt
 MARZBAN_ADMIN_USER="admin"
 # ---------------------
 
+# 0. Clean conflicting Docker/containerd packages
+echo "--- Cleaning conflicting Docker/containerd packages ---"
+apt remove -y containerd containerd.io docker.io docker-doc docker-compose docker-compose-v2 runc || true
+apt autoremove -y
+apt update
+
 # 1. Check for Root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root (use sudo)"
-  exit
+  exit 1
 fi
 
 # 2. Ask for Domain Name
@@ -21,9 +27,9 @@ if [ -z "$DOMAIN_NAME" ]; then
     exit 1
 fi
 
-echo "--- Updating System & Installing Dependencies ---"
-apt update
+echo "--- Installing Docker, Nginx, Certbot, and deps ---"
 apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx curl jq openssl expect
+systemctl enable --now docker
 
 # 3. Create Dockerfiles (Includes OpenSSL Fix)
 echo "--- Creating Dockerfiles ---"
@@ -121,7 +127,7 @@ COMPOSE
 
 # 6. Build and Start Docker
 echo "--- Building and Starting Application ---"
-docker compose down
+docker compose down || true
 docker compose up -d --build
 
 # 7. Initialize Database (Prevents 502 Error)
@@ -158,8 +164,8 @@ certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $ADMIN_EMAIL --
 echo "--- Moving SSL to Port $TARGET_PORT ---"
 sed -i "s/listen 443 ssl/listen $TARGET_PORT ssl/g" /etc/nginx/sites-available/$DOMAIN_NAME
 
-ufw allow $TARGET_PORT/tcp
-ufw allow 80/tcp # Keep 80 open for Certbot renewals
+ufw allow $TARGET_PORT/tcp || true
+ufw allow 80/tcp || true # Keep 80 open for Certbot renewals
 systemctl reload nginx
 
 echo "------------------------------------------------------------------"
@@ -169,7 +175,7 @@ echo "Username: admin@admin.com"
 echo "Password: admin123"
 echo "------------------------------------------------------------------"
 
-# 10. Prompt for Marzban installation (Ctrl+C safe)
+# 10. Prompt for Marzban installation (Ctrl+C-safe)
 read -p "Do you want to install Marzban on this server? (y/N): " INSTALL_MARZBAN
 INSTALL_MARZBAN=${INSTALL_MARZBAN,,}  # to lowercase
 
