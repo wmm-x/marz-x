@@ -127,6 +127,15 @@ server {
         proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
     }
+
+    # Added to support /auth/... calls when backend doesn't use /api prefix
+    location /auth/ {
+        proxy_pass http://app:5000/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+    }
 }
 NGINX
 
@@ -200,7 +209,7 @@ if [ -f "$SRC/fullchain.pem" ] && [ -f "$SRC/privkey.pem" ]; then
   cp "$SRC/fullchain.pem" "$DEST/fullchain.pem"
   cp "$SRC/privkey.pem" "$DEST/privkey.pem"
   chmod 600 "$DEST/privkey.pem"
-  if id -u marzban >/dev/null 2>&1; then
+  if id -u marzban >/dev/null 2.1; then
     chown -R marzban:marzban "$DEST" || true
   fi
   systemctl restart marzban || true
