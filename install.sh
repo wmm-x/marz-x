@@ -1,54 +1,55 @@
 #!/bin/bash
 
 # --- Configuration ---
-APP_PORT=3000          # Internal Port for Frontend (served by Nginx)
-TARGET_PORT=6104       # EXTERNAL Port for Dashboard (HTTPS)
-ADMIN_EMAIL="admin@admin.com" # Default email for Let's Encrypt
+APP_PORT=3000          # Internal port for frontend (served by Nginx)
+TARGET_PORT=6104       # External HTTPS port
+ADMIN_EMAIL="admin@admin.com" # Certbot email
 MARZBAN_ADMIN_USER="admin"
 # ---------------------
 
+set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 1. Check for Root
+# 1. Require root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root (use sudo)"
-  exit
+  exit 1
 fi
 
-# 2. Ask for Domain Name
+# 2. Domain
 read -p "Enter your domain name (e.g., dashboard.example.com): " DOMAIN_NAME
 if [ -z "$DOMAIN_NAME" ]; then
-    echo "Domain name is required!"
-    exit 1
+  echo "Domain name is required!"
+  exit 1
 fi
 
-echo "--- Updating System & Installing Dependencies ---"
+echo "--- Updating system & installing dependencies ---"
 apt update
 apt install -y nginx certbot python3-certbot-nginx curl jq openssl
 
-# 3. Install Node.js 20.x LTS if not present (or upgrade if < 20)
-if ! command -v node &> /dev/null; then
-    echo "--- Installing Node.js 20.x LTS ---"
+# 3. Node.js 20.x LTS (install or upgrade if <20)
+if ! command -v node &>/dev/null; then
+  echo "--- Installing Node.js 20.x LTS ---"
+  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+  apt install -y nodejs
+else
+  NODE_MAJOR=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
+  if [ "$NODE_MAJOR" -lt 20 ]; then
+    echo "--- Upgrading Node.js to 20.x LTS ---"
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt install -y nodejs
-else
-    NODE_MAJOR=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-    if [ "$NODE_MAJOR" -lt 20 ]; then
-        echo "--- Upgrading Node.js to 20.x LTS ---"
-        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-        apt install -y nodejs
-    fi
+  fi
 fi
 
-# 4. Ensure dotenv is available for prisma.config.ts
+# 4. Ensure dotenv exists (no full npm install)
 cd "$SCRIPT_DIR"
 if [ ! -d "$SCRIPT_DIR/node_modules/dotenv" ]; then
-  echo "--- Installing dotenv (no full npm install) ---"
+  echo "--- Installing dotenv only ---"
   npm install --no-save dotenv
 fi
 
-# 5. Generate Production .env File
-echo "--- Generating Production .env File ---"
+# 5. Generate .env
+echo "--- Generating .env ---"
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 
@@ -65,17 +66,16 @@ MARZBAN_ADMIN="MarzbanAdminx"
 MARZBAN_ADMIN_PASS="G\$2WuaYJW@THP!9"
 ENVFILE
 
-# 6. Create data directory for SQLite
 mkdir -p "$SCRIPT_DIR/data"
 
-# 7. Generate Prisma Client / Migrate DB
+# 6. Prisma: generate client & push schema
 echo "--- Setting up Prisma ---"
 cd "$SCRIPT_DIR"
 npx prisma generate
 npx prisma db push
 
-# 8. Setup systemd service for Backend
-echo "--- Creating Backend Service ---"
+# 7. systemd service
+echo "--- Creating backend service ---"
 cat <<SERVICE > /etc/systemd/system/marzban-dashboard.service
 [Unit]
 Description=Marzban Dashboard Backend
@@ -85,11 +85,10 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=$SCRIPT_DIR
+EnvironmentFile=$SCRIPT_DIR/.env
 ExecStart=/usr/bin/node $SCRIPT_DIR/src/index.js
 Restart=on-failure
 RestartSec=10
-Environment=NODE_ENV=production
-EnvironmentFile=$SCRIPT_DIR/.env
 
 [Install]
 WantedBy=multi-user.target
@@ -97,23 +96,21 @@ SERVICE
 
 systemctl daemon-reload
 systemctl enable marzban-dashboard
-systemctl start marzban-dashboard
+systemctl restart marzban-dashboard
 
-# 9. Configure Nginx for Frontend (dist) and Backend API
+# 8. Nginx for frontend (dist) and backend proxy
 echo "--- Configuring Nginx ---"
 cat <<NGINX > /etc/nginx/sites-available/$DOMAIN_NAME
 server {
     listen 80;
     server_name $DOMAIN_NAME;
 
-    # Serve pre-built frontend from dist folder
     location / {
         root $SCRIPT_DIR/dist;
         index index.html index.htm;
         try_files \$uri \$uri/ /index.html;
     }
 
-    # Proxy API requests to backend
     location /api {
         proxy_pass http://127.0.0.1:5000;
         proxy_http_version 1.1;
@@ -131,16 +128,16 @@ ln -sf /etc/nginx/sites-available/$DOMAIN_NAME /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 
-# 10. Setup SSL & Switch to Port 6104
+# 9. SSL on TARGET_PORT
 echo "--- Setting up SSL (HTTPS) ---"
-certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $ADMIN_EMAIL --redirect
+certbot --nginx -d "$DOMAIN_NAME" --non-interactive --agree-tos -m "$ADMIN_EMAIL" --redirect
 
-echo "--- Moving SSL to Port $TARGET_PORT ---"
+echo "--- Moving SSL to port $TARGET_PORT ---"
 sed -i "s/listen 443 ssl/listen $TARGET_PORT ssl/g" /etc/nginx/sites-available/$DOMAIN_NAME
+nginx -t && systemctl reload nginx
 
-ufw allow $TARGET_PORT/tcp
-ufw allow 80/tcp # Keep 80 open for Certbot renewals
-systemctl reload nginx
+ufw allow $TARGET_PORT/tcp || true
+ufw allow 80/tcp || true
 
 echo "------------------------------------------------------------------"
 echo "✅ MARZ-X Dashboard Installation Complete!"
@@ -149,9 +146,9 @@ echo "Username: admin@admin.com"
 echo "Password: admin123"
 echo "------------------------------------------------------------------"
 
-# 11. Prompt for Marzban installation
+# 10. Optional: Marzban install
 read -p "Do you want to install Marzban on this server? (y/N): " INSTALL_MARZBAN
-INSTALL_MARZBAN=${INSTALL_MARZBAN,,}  # to lowercase
+INSTALL_MARZBAN=${INSTALL_MARZBAN,,}
 
 if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
   echo "--- Installing Marzban ---"
@@ -166,7 +163,7 @@ if [[ "$INSTALL_MARZBAN" == "y" || "$INSTALL_MARZBAN" == "yes" ]]; then
     chown -R marzban:marzban /var/lib/marzban/certs || true
   fi
 
-  echo "--- Setting up cert renewal hook ---"
+  echo "--- Cert renewal hook ---"
   mkdir -p /etc/letsencrypt/renewal-hooks/post
   cat <<'HOOK' > /etc/letsencrypt/renewal-hooks/post/20-marzban-cert-sync.sh
 #!/bin/bash
@@ -185,7 +182,7 @@ fi
 HOOK
   chmod +x /etc/letsencrypt/renewal-hooks/post/20-marzban-cert-sync.sh
 
-  echo "--- Configuring Marzban .env for SSL and admin ---"
+  echo "--- Configure Marzban .env ---"
   MARZBAN_ENV="/opt/marzban/.env"
   MARZBAN_SUDO_PASS=$(openssl rand -base64 16 | tr -d '\n')
   if [ -f "$MARZBAN_ENV" ]; then
