@@ -228,7 +228,7 @@ HOOK
     # Ensure the file ends with a newline before appending anything
     [ -n "$(tail -c1 "$MARZBAN_ENV")" ] && echo >> "$MARZBAN_ENV"
     # --- MODIFIED LINE END ---
-    
+
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_CERTFILE *=.*|UVICORN_SSL_CERTFILE="/var/lib/marzban/certs/fullchain.pem"|' "$MARZBAN_ENV"
     sed -i 's|^[[:space:]]*#\s*UVICORN_SSL_KEYFILE *=.*|UVICORN_SSL_KEYFILE="/var/lib/marzban/certs/privkey.pem"|' "$MARZBAN_ENV"
 
@@ -276,14 +276,20 @@ HOOK
   marzban restart
 
   echo "------------------------------------------------------------------"
-  echo "✅ Marzban installation and configuration complete."
-  echo "Admin username: $MARZBAN_ADMIN_USER"
-  echo "Admin password: $MARZBAN_SUDO_PASS"
+  echo "✅ INSTALLATION COMPLETE!"
   echo "------------------------------------------------------------------"
-  echo "✅ MARZ-X Dashboard Installation Complete!"
-  echo "Dashboard is live at: https://$DOMAIN_NAME:$TARGET_PORT"
-  echo "Username: admin@admin.com"
-  echo "Password: admin123"
+  echo "🔹 1. MARZ-X DASHBOARD LOGIN"
+  echo "   URL: https://$DOMAIN_NAME:$TARGET_PORT"
+  echo "   Username: admin@admin.com"
+  echo "   Password: admin123"
+  echo ""
+  echo "🔹 2. CONNECT MARZBAN TO DASHBOARD (REQUIRED)"
+  echo "   1. Log in to the Marz-X Dashboard above."
+  echo "   2. Go to 'Settings' > 'Add Server'."
+  echo "   3. Enter the following Marzban credentials:"
+  echo "      - URL:      https://$DOMAIN_NAME:8000"
+  echo "      - Username: $MARZBAN_ADMIN_USER"
+  echo "      - Password: $MARZBAN_SUDO_PASS"
   echo "------------------------------------------------------------------"
 else
   echo "Skipped Marzban installation."
