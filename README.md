@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/wmm-x/marz-x">
-    <img src="https://raw.githubusercontent.com/wmm-x/marz-x/efc8cb99b3192b7173f6d3054f3b05eff899f5d9/template/logo.png" alt="Marz-X Logo" width="500">
+    <img src="https://raw.githubusercontent.com/wmm-x/marz-x/6349a7f2403c733b169bd2c8e7a834b8458d7045/template/logo.png" alt="Marz-X Logo" width="500">
   </a>
   <br><br>
   <h1>Marz-X Dashboard</h1>
@@ -62,12 +62,7 @@ This project includes an automatic installation script that sets up Docker, Ngin
 Run the following commands:
 
 ```bash
-apt update && apt install -y git
-rm -rf marz-x
-git clone https://github.com/wmm-x/marz-x.git
-cd marz-x
-chmod +x install.sh
-./install.sh
+apt update && apt install -y git && rm -rf marz-x && git clone https://github.com/wmm-x/marz-x.git && cd marz-x && chmod +x install.sh && ./install.sh
 ```
 ## Acknowledgements
 
@@ -77,7 +72,6 @@ Special thanks to **Gozargah** for creating and maintaining Marzban, the core th
 Disclaimer: Marz-X is community-driven and is not affiliated with or endorsed by the Marzban core team.
 
 ## License
+This project is licensed under the MIT License.
 
-This project is licensed under the MIT License. See the LICENSE file for details.
-
-<div align="center"> <sub>Developed by <a href="https://github.com/wmm-x">wmm-x</a></sub> </div> 
+<h3><div align="center"> <sub>Developed by <a href="https://github.com/wmm-x">wmm-x</a></sub> </div> </h3>
