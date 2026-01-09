@@ -79,7 +79,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=$SCRIPT_DIR
-ExecStart=/usr/bin/node $SCRIPT_DIR/src/index. js
+ExecStart=/usr/bin/node $SCRIPT_DIR/src/index.js
 Restart=on-failure
 RestartSec=10
 Environment=NODE_ENV=production
@@ -221,7 +221,7 @@ HOOK
   echo "--- Deploying subscription template ---"
   mkdir -p /var/lib/marzban/templates/subscription
   if [ -f "$SCRIPT_DIR/template/index.html" ]; then
-    cp "$SCRIPT_DIR/template/index.html" /var/lib/marzban/templates/subscription/index. html
+    cp "$SCRIPT_DIR/template/index.html" /var/lib/marzban/templates/subscription/index.html
   else
     echo "WARNING: $SCRIPT_DIR/template/index.html not found; skipping template copy."
   fi
