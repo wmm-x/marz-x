@@ -1,10 +1,10 @@
 #!/bin/bash
-# MARZ-X installer for consolidated repo (backend + frontend dist in root)
+# MARZ-X installer for consolidated repo (backend + prebuilt frontend dist in root)
 
 set -euo pipefail
 
 # --- Configuration ---
-APP_PORT=3000          # internal app port (container)
+APP_PORT=3000          # internal app port (nginx inside web container)
 TARGET_PORT=6104       # external HTTPS port
 ADMIN_EMAIL="admin@admin.com"
 MARZBAN_ADMIN_USER="admin"
@@ -25,37 +25,25 @@ echo "--- Updating System & Installing Dependencies ---"
 apt update
 apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx curl jq openssl expect ufw
 
-echo "--- Creating Dockerfiles ---"
-# Backend + frontend build in one image
+echo "--- Writing Dockerfile (uses prebuilt dist/) ---"
 cat <<'DOCKERFILE' > Dockerfile
-FROM node:18-alpine as build
+FROM node:18-alpine as app
 WORKDIR /app
 RUN apk add --no-cache python3 make g++ openssl
 COPY package*.json ./
 RUN npm ci
 COPY . .
-# Build frontend (assumes src -> dist)
-RUN npm run build
+# Require prebuilt dist
+RUN if [ -d dist ]; then echo "Using existing dist/"; else echo "dist/ missing. Build it locally and commit it, or add a build step."; exit 1; fi
 # Generate Prisma client
 RUN npx prisma generate
-
-FROM node:18-alpine as app
-WORKDIR /app
-RUN apk add --no-cache openssl
-COPY --from=build /app/package*.json ./
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/src ./src
-COPY --from=build /app/prisma.config.ts ./prisma.config.ts
-COPY --from=build /app/.env /app/.env
 EXPOSE 5000
 CMD ["npm", "run", "start"]
 
 FROM nginx:alpine as web
 WORKDIR /usr/share/nginx/html
-COPY --from=build /app/dist ./
-# Nginx config added at runtime via bind mount
+COPY --from=app /app/dist ./
+# Nginx config comes from bind mount (nginx.conf)
 DOCKERFILE
 
 echo "--- Generating Production .env File ---"
@@ -75,7 +63,7 @@ MARZBAN_ADMIN="MarzbanAdminx"
 MARZBAN_ADMIN_PASS="G\$2WuaYJW@THP!9"
 ENVFILE
 
-echo "--- Configuring Docker Compose ---"
+echo "--- Writing docker-compose.yml ---"
 cat <<COMPOSE > docker-compose.yml
 services:
   app:
@@ -119,13 +107,12 @@ volumes:
   marzban_data:
 COMPOSE
 
-echo "--- Writing nginx.conf ---"
+echo "--- Writing nginx.conf (container) ---"
 cat <<NGINX > nginx.conf
 server {
     listen 80;
     server_name _;
 
-    # Static files
     root /usr/share/nginx/html;
     index index.html;
 
