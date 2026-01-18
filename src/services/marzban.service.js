@@ -1,5 +1,13 @@
 const axios = require('axios');
 const prisma = require('../utils/prisma');
+const http = require('http');
+const https = require('https');
+
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
+
+// Cache for MarzbanService instances
+const serviceCache = new Map();
 
 class MarzbanService {
   constructor(config) {
@@ -13,6 +21,8 @@ class MarzbanService {
     var self = this;
     var client = axios.create({
       baseURL: this.baseUrl,
+      httpAgent: httpAgent,
+      httpsAgent: httpsAgent,
       headers: {
         'Authorization': 'Bearer ' + this.accessToken,
         'Content-Type': 'application/json'
@@ -195,10 +205,23 @@ class MarzbanService {
 }
 
 async function createMarzbanService(config) {
-  return new MarzbanService(config);
+  let service = serviceCache.get(config.id);
+  if (service) {
+    service.config = config; // Update config reference
+    return service;
+  }
+
+  service = new MarzbanService(config);
+  serviceCache.set(config.id, service);
+  return service;
+}
+
+function invalidateMarzbanService(configId) {
+  serviceCache.delete(configId);
 }
 
 module.exports = {
   MarzbanService: MarzbanService,
-  createMarzbanService: createMarzbanService
+  createMarzbanService: createMarzbanService,
+  invalidateMarzbanService: invalidateMarzbanService
 };
