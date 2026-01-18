@@ -172,6 +172,18 @@ certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $ADMIN_EMAIL --
 echo "--- Moving SSL to Port $TARGET_PORT ---"
 sed -i "s/listen 443 ssl/listen $TARGET_PORT ssl/g" /etc/nginx/sites-available/$DOMAIN_NAME
 
+echo "--- Releasing Port 80 (stop Nginx from listening on it) ---"
+
+# Remove any Nginx "listen 80" blocks from this site config so Nginx frees port 80
+perl -0777 -i -pe 's/server\s*\{\s*listen\s+80;.*?\}\s*//s' /etc/nginx/sites-available/$DOMAIN_NAME
+
+# If Certbot added an extra file (sometimes it does), also disable it safely:
+# (This is optional; harmless if the file doesn't exist)
+rm -f /etc/nginx/sites-enabled/000-default 2>/dev/null || true
+
+nginx -t && systemctl reload nginx
+
+
 ufw allow $TARGET_PORT/tcp
 ufw allow 80/tcp # Keep 80 open for Certbot renewals
 systemctl reload nginx
