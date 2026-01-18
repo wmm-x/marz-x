@@ -172,39 +172,19 @@ certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $ADMIN_EMAIL --
 echo "--- Moving SSL to Port $TARGET_PORT ---"
 sed -i "s/listen 443 ssl/listen $TARGET_PORT ssl/g" /etc/nginx/sites-available/$DOMAIN_NAME
 
-echo "--- Releasing Port 80 (free for future use) ---"
-
-# A) Remove ALL listen 80 directives from the domain config (Certbot may have inserted/kept them)
-sed -i '/^\s*listen\s\+80\s*;/d' /etc/nginx/sites-available/$DOMAIN_NAME
-sed -i '/^\s*listen\s\+\[::\]\:80\s*;/d' /etc/nginx/sites-available/$DOMAIN_NAME
-
-# B) Disable any OTHER enabled site configs that still bind port 80 (keep our domain enabled)
-for f in /etc/nginx/sites-enabled/*; do
-  [ -e "$f" ] || continue
-  base="$(basename "$f")"
-  if [ "$base" != "$DOMAIN_NAME" ] && grep -qE '^\s*listen\s+80\b|^\s*listen\s+\[::\]:80\b' "$f" 2>/dev/null; then
-    rm -f "$f"
-  fi
-done
-
-nginx -t && systemctl reload nginx
-
-echo "--- Releasing Port 80 globally from Nginx (keep UFW open) ---"
-
-# Remove any "listen 80" in /etc/nginx/sites-available, sites-enabled, conf.d
-# (This frees port 80 from nginx so other apps can use it later)
-find /etc/nginx -type f -name "*.conf" -print0 \
-  | xargs -0 sed -i \
-    -e '/^\s*listen\s\+80\s*;/d' \
-    -e '/^\s*listen\s\+\[::\]\:80\s*;/d'
-
-nginx -t && systemctl reload nginx
-
-
-# Firewall: keep 80 OPEN (not blocked) so you can use it for future work
 ufw allow $TARGET_PORT/tcp
-ufw allow 80/tcp
+ufw allow 80/tcp # Keep 80 open for Certbot renewals
 systemctl reload nginx
+
+echo "--- Releasing Port 80 (remove Certbot HTTP server block) ---"
+
+# Remove the Certbot-added HTTP redirect/404 server block (frees port 80)
+# This assumes Certbot appended it after the main SSL server.
+# It deletes from the second "server {" to end-of-file.
+sed -i '0,/^server {/!{/^server {/,$d}' /etc/nginx/sites-available/$DOMAIN_NAME
+
+nginx -t && systemctl restart nginx
+
 echo "------------------------------------------------------------------"
   echo "✅ MARZ-X Dashboard Installation Complete!"
   echo "Dashboard is live at: https://$DOMAIN_NAME:$TARGET_PORT"
