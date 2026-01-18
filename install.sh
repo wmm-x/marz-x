@@ -172,22 +172,27 @@ certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $ADMIN_EMAIL --
 echo "--- Moving SSL to Port $TARGET_PORT ---"
 sed -i "s/listen 443 ssl/listen $TARGET_PORT ssl/g" /etc/nginx/sites-available/$DOMAIN_NAME
 
-echo "--- Releasing Port 80 (stop Nginx from listening on it) ---"
+echo "--- Releasing Port 80 (free for future use) ---"
 
-# Remove any Nginx "listen 80" blocks from this site config so Nginx frees port 80
-perl -0777 -i -pe 's/server\s*\{\s*listen\s+80;.*?\}\s*//s' /etc/nginx/sites-available/$DOMAIN_NAME
+# A) Remove ALL listen 80 directives from the domain config (Certbot may have inserted/kept them)
+sed -i '/^\s*listen\s\+80\s*;/d' /etc/nginx/sites-available/$DOMAIN_NAME
+sed -i '/^\s*listen\s\+\[::\]\:80\s*;/d' /etc/nginx/sites-available/$DOMAIN_NAME
 
-# If Certbot added an extra file (sometimes it does), also disable it safely:
-# (This is optional; harmless if the file doesn't exist)
-rm -f /etc/nginx/sites-enabled/000-default 2>/dev/null || true
+# B) Disable any OTHER enabled site configs that still bind port 80 (keep our domain enabled)
+for f in /etc/nginx/sites-enabled/*; do
+  [ -e "$f" ] || continue
+  base="$(basename "$f")"
+  if [ "$base" != "$DOMAIN_NAME" ] && grep -qE '^\s*listen\s+80\b|^\s*listen\s+\[::\]:80\b' "$f" 2>/dev/null; then
+    rm -f "$f"
+  fi
+done
 
 nginx -t && systemctl reload nginx
 
-
+# Firewall: keep 80 OPEN (not blocked) so you can use it for future work
 ufw allow $TARGET_PORT/tcp
-ufw allow 80/tcp # Keep 80 open for Certbot renewals
+ufw allow 80/tcp
 systemctl reload nginx
-
 echo "------------------------------------------------------------------"
   echo "✅ MARZ-X Dashboard Installation Complete!"
   echo "Dashboard is live at: https://$DOMAIN_NAME:$TARGET_PORT"
