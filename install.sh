@@ -189,6 +189,18 @@ done
 
 nginx -t && systemctl reload nginx
 
+echo "--- Releasing Port 80 globally from Nginx (keep UFW open) ---"
+
+# Remove any "listen 80" in /etc/nginx/sites-available, sites-enabled, conf.d
+# (This frees port 80 from nginx so other apps can use it later)
+find /etc/nginx -type f -name "*.conf" -print0 \
+  | xargs -0 sed -i \
+    -e '/^\s*listen\s\+80\s*;/d' \
+    -e '/^\s*listen\s\+\[::\]\:80\s*;/d'
+
+nginx -t && systemctl reload nginx
+
+
 # Firewall: keep 80 OPEN (not blocked) so you can use it for future work
 ufw allow $TARGET_PORT/tcp
 ufw allow 80/tcp
