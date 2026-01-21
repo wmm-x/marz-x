@@ -1,5 +1,15 @@
 const axios = require('axios');
 const prisma = require('../utils/prisma');
+const http = require('http');
+const https = require('https');
+
+// Optimization: Reuse connections and service instances
+// Using keepAlive agents allows reusing TCP connections, significantly reducing latency and CPU usage
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
+
+// Cache to store service instances: configId -> { instance, updatedAt }
+const serviceCache = new Map();
 
 class MarzbanService {
   constructor(config) {
@@ -13,6 +23,8 @@ class MarzbanService {
     var self = this;
     var client = axios.create({
       baseURL: this.baseUrl,
+      httpAgent: httpAgent,
+      httpsAgent: httpsAgent,
       headers: {
         'Authorization': 'Bearer ' + this.accessToken,
         'Content-Type': 'application/json'
@@ -77,7 +89,9 @@ class MarzbanService {
 
       var authRes = await axios.post(this.baseUrl + '/api/admin/token', params, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        timeout: 10000
+        timeout: 10000,
+        httpAgent: httpAgent,
+        httpsAgent: httpsAgent
       });
 
       if (authRes.data && authRes.data.access_token) {
@@ -195,7 +209,22 @@ class MarzbanService {
 }
 
 async function createMarzbanService(config) {
-  return new MarzbanService(config);
+  const cached = serviceCache.get(config.id);
+
+  // Check if we have a cached instance and if it's up to date
+  // We compare timestamps to ensure we use the latest config (e.g. if token or url changed)
+  if (cached && config.updatedAt && cached.updatedAt.getTime() === config.updatedAt.getTime()) {
+    return cached.instance;
+  }
+
+  const instance = new MarzbanService(config);
+
+  serviceCache.set(config.id, {
+    instance,
+    updatedAt: config.updatedAt
+  });
+
+  return instance;
 }
 
 module.exports = {
