@@ -1,18 +1,31 @@
 const axios = require('axios');
 const prisma = require('../utils/prisma');
+const http = require('http');
+const https = require('https');
+
+// Service cache to store MarzbanService instances
+const serviceCache = new Map();
 
 class MarzbanService {
   constructor(config) {
     this.config = config;
     this.baseUrl = config.endpointUrl.replace(/\/+$/, '');
     this.accessToken = config.encryptedAccessToken;
+
+    // Create agents with keepAlive enabled
+    this.httpAgent = new http.Agent({ keepAlive: true });
+    this.httpsAgent = new https.Agent({ keepAlive: true });
+
     this.client = this.createClient();
   }
 
   createClient() {
     var self = this;
+
     var client = axios.create({
       baseURL: this.baseUrl,
+      httpAgent: this.httpAgent,
+      httpsAgent: this.httpsAgent,
       headers: {
         'Authorization': 'Bearer ' + this.accessToken,
         'Content-Type': 'application/json'
@@ -83,10 +96,13 @@ class MarzbanService {
       if (authRes.data && authRes.data.access_token) {
         var newToken = authRes.data.access_token;
 
-        await prisma.marzbanConfig.update({
+        const updatedConfig = await prisma.marzbanConfig.update({
           where: { id: this.config.id },
           data: { encryptedAccessToken: newToken }
         });
+
+        // Update internal config to match DB so cache remains valid
+        this.config = updatedConfig;
 
         console.log('Token refreshed successfully! ');
         return newToken;
@@ -195,7 +211,25 @@ class MarzbanService {
 }
 
 async function createMarzbanService(config) {
-  return new MarzbanService(config);
+  // Check if we have a cached instance
+  if (serviceCache.has(config.id)) {
+    const cachedService = serviceCache.get(config.id);
+
+    // Check if the config has changed (using updatedAt)
+    const cachedTime = new Date(cachedService.config.updatedAt).getTime();
+    const configTime = new Date(config.updatedAt).getTime();
+
+    if (cachedTime === configTime) {
+      return cachedService;
+    }
+
+    // Config changed, remove old instance
+    serviceCache.delete(config.id);
+  }
+
+  const service = new MarzbanService(config);
+  serviceCache.set(config.id, service);
+  return service;
 }
 
 module.exports = {
