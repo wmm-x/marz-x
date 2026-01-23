@@ -1,5 +1,12 @@
 const axios = require('axios');
+const http = require('http');
+const https = require('https');
 const prisma = require('../utils/prisma');
+
+// Shared agents for connection pooling
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
+const serviceCache = new Map(); // key: config.id, value: { instance: MarzbanService, timestamp: number }
 
 class MarzbanService {
   constructor(config) {
@@ -13,6 +20,8 @@ class MarzbanService {
     var self = this;
     var client = axios.create({
       baseURL: this.baseUrl,
+      httpAgent: httpAgent,
+      httpsAgent: httpsAgent,
       headers: {
         'Authorization': 'Bearer ' + this.accessToken,
         'Content-Type': 'application/json'
@@ -195,7 +204,16 @@ class MarzbanService {
 }
 
 async function createMarzbanService(config) {
-  return new MarzbanService(config);
+  const cached = serviceCache.get(config.id);
+  const configTimestamp = config.updatedAt ? new Date(config.updatedAt).getTime() : 0;
+
+  if (cached && cached.timestamp === configTimestamp) {
+    return cached.instance;
+  }
+
+  const instance = new MarzbanService(config);
+  serviceCache.set(config.id, { instance: instance, timestamp: configTimestamp });
+  return instance;
 }
 
 module.exports = {

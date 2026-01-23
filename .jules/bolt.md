@@ -1,0 +1,3 @@
+## 2024-05-24 - [Axios Connection Pooling]
+**Learning:** Axios `create()` creates a new instance with its own internal state and default agents. If `httpAgent` / `httpsAgent` are not explicitly provided, it defaults to the global Node.js agents which might not have `keepAlive` enabled or optimized for high throughput. Creating new Axios instances per request without sharing agents leads to no connection reuse (TCP handshake overhead).
+**Action:** When using Axios in a service class instantiated per-request, always create `http.Agent` and `https.Agent` with `keepAlive: true` globally (or statically) and pass them to `axios.create()`.
