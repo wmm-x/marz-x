@@ -50,7 +50,6 @@ This project includes an automatic installation script that sets up Docker, Ngin
 </div>
 
 ---
-
 ## Installation
 
 ### Requirements
