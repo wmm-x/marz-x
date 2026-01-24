@@ -221,11 +221,11 @@ fi
 # Main Menu Loop
 while true; do
     show_header
-    echo "1) > Start Services"
-    echo "2) [] Stop Services"
-    echo "3) [DEL] Uninstall Dashboard"
-    echo "4) [LOG] View Logs"
-    echo "5) [EXIT] Exit"
+    echo "1) Start Services"
+    echo "2) Stop Services"
+    echo "3) Uninstall Dashboard"
+    echo "4) View Logs"
+    echo "5) Exit"
     echo ""
     read -p "Select an option [1-5]: " OPTION
 
