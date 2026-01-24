@@ -30,8 +30,8 @@ This project includes an automatic installation script that sets up Docker, Ngin
 ### Core Features
 
 - **One-Click Auto Installation:** A single command to set up the Dashboard, Docker, SSL certificates, and the Marzban VPN node.
-- **Visual Xray Configuration:** Manage Xray Core directly via GUI—configure Inbounds, Outbounds, and Routing rules without editing JSON files.
-- **Automated Marzban Node Optimization:** Automatically monitors and tunes system resources on connected Marzban servers to ensure peak VPN performance.
+- **Visual Xray Configuration:** Manage Xray Core directly via GUI-configure Inbounds, Outbounds, and Routing rules without editing JSON files.
+- **Automated Marzban Server Optimization:** Automatically monitors and tunes system resources on connected Marzban servers to ensure peak VPN performance.
 - **Native Marzban Integration:** Seamless real-time sync of users, traffic, and system status via the official API.
 - **Advanced User Management:** Create, edit, suspend, and reset user traffic with precise control over expiry dates.
 - **Subscription Management:** Easily manage plans, data limits, and custom subscription links.
