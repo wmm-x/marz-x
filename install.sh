@@ -637,9 +637,6 @@ else
     echo "🔹 To manage the marzban server, type: marzban"
 
 
+
     
-<<<<<<< HEAD
 fi
-=======
-fi
->>>>>>> cc7cefc4389e768271ed259ae8158bd5a869f930
