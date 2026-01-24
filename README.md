@@ -55,6 +55,7 @@ Run the following commands:
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/wmm-x/marz-x/main/install.sh)"
 ```
+---
 ## Screenshots
 
 <div align="center">
