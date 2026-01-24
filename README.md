@@ -28,18 +28,16 @@ This project includes an automatic installation script that sets up Docker, Ngin
 ## Features
 
 ### Core Features
-- **One-Click Auto Installation:** Sets up Dashboard + Marzban + Docker + Nginx + SSL automatically.
-- **Native Marzban API Integration:** Real-time sync of users, traffic, and system status.
-- **Advanced User Management:** Create, edit, suspend, reset traffic, and manage expiry dates.
-- **Analytics:** Detailed traffic and usage analytics.
-- **Fully Dockerized:** Secure and isolated environment.
-- **Subscription Management:** Manage plans, expiry dates, and traffic limits easily.
-- **Custom Subscription Pages:** Brandable templates for user-facing pages.
-- **Multi-Server Support:** Manage multiple nodes from one interface.
-- **Template Presets:** Ready-to-use presets for common VPN configurations.
-- **Fast SPA Dashboard:** Responsive and mobile-friendly design.
-- **Theme Support:** Built-in Dark / Light Mode switch.
-- **Search & Filters:** Quickly find users and plans.
+-
+- **One-Click Auto Installation:** A single command to set up the Dashboard, Docker, SSL certificates, and the Marzban VPN node.
+- **Visual Xray Configuration:** Manage Xray Core directly via GUI—configure Inbounds, Outbounds, and Routing rules without editing JSON files.
+- **Automated Marzban Node Optimization:** Automatically monitors and tunes system resources on connected Marzban servers to ensure peak VPN performance.
+- **Native Marzban Integration:** Seamless real-time sync of users, traffic, and system status via the official API.
+- **Advanced User Management:** Create, edit, suspend, and reset user traffic with precise control over expiry dates.
+- **Subscription Management:** Easily manage plans, data limits, and custom subscription links.
+- **Multi-Server Support:** Manage multiple Marzban nodes from a single centralized interface.
+- **Fully Dockerized:** Runs in a secure, isolated environment for easy updates and maintenance.
+
 
 ---
 ## Installation
