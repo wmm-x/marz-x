@@ -6,7 +6,7 @@
   <h1>Marz-X Dashboard</h1>
   <p><b>A modern and efficient management dashboard for Marzban</b></p>
   <p>
-    <a href="#features">• Features</a> •
+    <a href="#features"> Features</a> •
     <a href="#installation">Installation</a> •
     <a href="#screenshots">Screenshots</a> 
   </p>
