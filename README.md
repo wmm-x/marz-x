@@ -42,14 +42,6 @@ This project includes an automatic installation script that sets up Docker, Ngin
 - **Search & Filters:** Quickly find users and plans.
 
 ---
-
-## Screenshots
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/wmm-x/marz-x/efc8cb99b3192b7173f6d3054f3b05eff899f5d9/template/dashboard.png" alt="Dashboard Home" width="100%">
-</div>
-
----
 ## Installation
 
 ### Requirements
@@ -63,6 +55,14 @@ Run the following commands:
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/wmm-x/marz-x/main/install.sh)"
 ```
+## Screenshots
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/wmm-x/marz-x/efc8cb99b3192b7173f6d3054f3b05eff899f5d9/template/dashboard.png" alt="Dashboard Home" width="100%">
+</div>
+
+---
+
 ## Acknowledgements
 
 This project is an advanced, customizable UI built on top of the official **Marzban** project.
