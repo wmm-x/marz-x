@@ -9,7 +9,6 @@
     <a href="#features">Features</a> •
     <a href="#installation">Installation</a> •
     <a href="#screenshots">Screenshots</a> •
-    <a href="#support">Support</a>
   </p>
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/platform-Ubuntu%2022.04%2B-orange.svg" alt="Platform">
