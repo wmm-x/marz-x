@@ -62,7 +62,7 @@ This project includes an automatic installation script that sets up Docker, Ngin
 Run the following commands:
 
 ```bash
-apt update && apt install -y git && rm -rf marz-x && git clone https://github.com/wmm-x/marz-x.git && cd marz-x && chmod +x install.sh && ./install.sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/wmm-x/marz-x/main/install.sh)"
 ```
 ## Acknowledgements
 
