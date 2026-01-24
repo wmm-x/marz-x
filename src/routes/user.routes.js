@@ -6,6 +6,18 @@ const authMiddleware = require('../middleware/auth.middleware');
 const router = express.Router();
 
 router.use(authMiddleware);
+// Auto server optimization: check RAM and restart xray if needed
+router.post('/:configId/auto-optimize', async function(req, res) {
+  try {
+    const config = await getConfig(req, res);
+    const marzban = await createMarzbanService(config);
+    const result = await marzban.autoOptimizeServer();
+    res.json(result);
+  } catch (error) {
+    console.error('Auto optimize error:', error.message);
+    res.status(500).json({ error: 'Failed to auto optimize server' });
+  }
+});
 
 // Helper to get config
 async function getConfig(req, res) {
@@ -113,7 +125,7 @@ router.put('/:configId/:username', async function(req, res) {
     const config = await getConfig(req, res);
     const marzban = await createMarzbanService(config);
     
-    // Get existing user to preserve proxies and inbounds
+    // Get existing user to preserve defaults if not provided
     const existingUser = await marzban.getUser(req.params.username);
     
     // Build update data
@@ -123,10 +135,13 @@ router.put('/:configId/:username', async function(req, res) {
       data_limit_reset_strategy: req.body.data_limit_reset_strategy || existingUser.data_limit_reset_strategy || 'no_reset',
       expire: req.body.expire !== undefined ? req.body.expire : existingUser.expire,
       note: req.body.note !== undefined ? req.body.note : existingUser.note,
-      proxies: existingUser.proxies || {},
-      inbounds: existingUser.inbounds || {},
-      on_hold_expire_duration: existingUser.on_hold_expire_duration,
-      on_hold_timeout: existingUser.on_hold_timeout
+      
+      // FIX: Check req.body first. If frontend sent new proxies/inbounds, use them.
+      proxies: req.body.proxies !== undefined ? req.body.proxies : (existingUser.proxies || {}),
+      inbounds: req.body.inbounds !== undefined ? req.body.inbounds : (existingUser.inbounds || {}),
+      
+      on_hold_expire_duration: req.body.on_hold_expire_duration !== undefined ? req.body.on_hold_expire_duration : existingUser.on_hold_expire_duration,
+      on_hold_timeout: req.body.on_hold_timeout !== undefined ? req.body.on_hold_timeout : existingUser.on_hold_timeout
     };
 
     const user = await marzban.updateUser(req.params.username, updateData);

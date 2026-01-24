@@ -2,6 +2,34 @@ const axios = require('axios');
 const prisma = require('../utils/prisma');
 
 class MarzbanService {
+    // Auto optimization: check RAM and restart xray if needed
+    async autoOptimizeServer() {
+      try {
+        const stats = await this.getSystemStats();
+       // console.log('[AutoOptimize] /api/system stats:', JSON.stringify(stats));
+        if (
+          stats &&
+          typeof stats.mem_used === 'number' &&
+          typeof stats.mem_total === 'number' &&
+          stats.mem_total > 0
+        ) {
+          const usagePercent = (stats.mem_used / stats.mem_total) * 100;
+          console.log(`[AutoOptimize] RAM usage: ${stats.mem_used} / ${stats.mem_total} = ${usagePercent.toFixed(2)}%`);
+          if (usagePercent > 10) {
+            console.log('[AutoOptimize] RAM usage above 10%, restarting xray...');
+            await this.restartXray();
+            return { optimized: true, usagePercent };
+          }
+          return { optimized: false, usagePercent };
+        } else {
+          console.error('[AutoOptimize] RAM stats not available or invalid:', stats);
+          throw new Error('RAM stats not available or invalid');
+        }
+      } catch (err) {
+        console.error('[AutoOptimize] Error:', err.message);
+        return { error: err.message };
+      }
+    }
   constructor(config) {
     this.config = config;
     this.baseUrl = config.endpointUrl.replace(/\/+$/, '');

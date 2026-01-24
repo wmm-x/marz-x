@@ -1,3 +1,5 @@
+// Start auto optimization scheduler
+const { startAutoOptimizationScheduler } = require('./autoOptimize');
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -43,9 +45,11 @@ app.use(function(err, req, res, next) {
 async function startServer() {
   try {
     await seedDefaultAdmin();
-    app.listen(PORT, function() {
-      console.log('Server running on http://localhost:' + PORT);
-    });
+    startAutoOptimizationScheduler();
+   app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

@@ -1,0 +1,28 @@
+# --- Dependencies & Logs ---
+node_modules
+npm-debug.log
+yarn-error.log
+*.log
+
+# --- Version Control & IDE ---
+.git
+.gitignore
+.vscode
+.idea
+
+# --- Secrets ---
+.env
+.env.*
+
+# --- Database ---
+prisma/dev.db
+*.db
+*.db-journal
+
+# --- Docker specifics ---
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# --- EXCLUDED FROM IGNORE (Allowed) ---
+# We REMOVED 'dist' from this list so your pre-built frontend gets copied!

@@ -2,7 +2,6 @@
 <html lang="en">
     <head>
         <script src="https://cdn.jsdelivr.net/npm/alpinejs@2.8.2/dist/alpine.min.js" defer></script>
-
         <script src="https://cdn.jsdelivr.net/npm/@ryangjchandler/alpine-clipboard@2.2.0/dist/alpine-clipboard.js" defer></script>
 
         <link rel="apple-touch-icon" sizes="76x76" href="/apple-touch-icon.png">
@@ -15,10 +14,13 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{{ user.username }} - Sub Info</title>
+
         <link href="https://cdn.jsdelivr.net/gh/MuhammadAshouri/marzban-templates@master/template-01/build.css" rel="stylesheet" />
         <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/1.6.6/flowbite.min.css" rel="stylesheet" />
         <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
         <script defer src="https://cdn.jsdelivr.net/gh/MuhammadAshouri/marzban-templates@master/template-01/qrcode.min.js"></script>
+
+        <!-- Alpine v3 (for i18n) -->
         <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.12.1/dist/cdn.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/alpinejs-i18n@2.4.0/dist/cdn.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@ryangjchandler/alpine-clipboard@2.2.0/dist/alpine-clipboard.js"></script>
@@ -32,19 +34,74 @@
                 document.execCommand('copy');
                 document.body.removeChild(textarea);
             }
+
+            // Show "Copied!" toast
+            // - Mobile: fixed top-center
+            // - Desktop: above the clicked button, centered
+            function showCopyToast(btnEl) {
+                const template = document.getElementById('copyid-template');
+                if (!template) return;
+
+                const popup = template.cloneNode(true);
+                popup.id = ''; // avoid duplicate IDs
+                popup.classList.remove('hidden');
+                document.body.appendChild(popup);
+
+                const isMobile =
+                    window.matchMedia &&
+                    window.matchMedia('(max-width: 640px)').matches;
+
+                if (isMobile) {
+                    // Fixed, top-center toast in mobile view
+                    popup.style.position = 'fixed';
+                    popup.style.top = '12px';
+                    popup.style.left = '50%';
+                    popup.style.transform = 'translateX(-50%)';
+                } else {
+                    popup.style.position = 'absolute';
+
+                    const btnRect = btnEl.getBoundingClientRect();
+                    const popupRect = popup.getBoundingClientRect();
+
+                    const top = window.scrollY + btnRect.top - popupRect.height - 12;
+                    const left = window.scrollX + btnRect.left + (btnRect.width / 2) - (popupRect.width / 2);
+
+                    popup.style.top = top + 'px';
+                    popup.style.left = left + 'px';
+                }
+
+                setTimeout(() => {
+                    popup.classList.add('hidden');
+                    setTimeout(() => {
+                        popup.remove();
+                    }, 300);
+                }, 1200);
+            }
         </script>
-    
+
         <script>
             const dataLimit = "{% if not user.data_limit %}∞{% else %}{{ user.data_limit }}{% endif %}";
             const dataUsed = "{{ user.used_traffic }}";
             const expireDateInit = "{% if not user.expire %}∞{% else %}{% set current_timestamp = now().timestamp() %}{{ user.expire | datetime }}{% endif %}";
-            var tmpUsage = ((parseFloat(dataUsed) / parseFloat(dataLimit)) * 100).toFixed(2);
-            if (tmpUsage > 100) tmpUsage = 100;
-            const dataUsage = dataLimit == "∞" ? 100 : tmpUsage;
+
+            // Robust usage calc (prevents NaN when dataLimit is ∞ or non-numeric)
+            let limitNum = parseFloat(dataLimit);
+            let usedNum = parseFloat(dataUsed);
+            let tmpUsage;
+            if (dataLimit == "∞" || Number.isNaN(limitNum) || !Number.isFinite(limitNum) || limitNum <= 0 || Number.isNaN(usedNum)) {
+                tmpUsage = 100;
+            } else {
+                tmpUsage = ((usedNum / limitNum) * 100);
+                if (!Number.isFinite(tmpUsage) || Number.isNaN(tmpUsage)) tmpUsage = 0;
+                if (tmpUsage > 100) tmpUsage = 100;
+                tmpUsage = tmpUsage.toFixed(2);
+            }
+
+            const dataUsage = (dataLimit == "∞" || Number.isNaN(limitNum) || !Number.isFinite(limitNum) || limitNum <= 0) ? 100 : tmpUsage;
             const dataChartColor = dataUsage < 40 ? "bg-green-600" : dataUsage < 80 ? "bg-yellow-600" : "bg-red-500";
             const resetInterval = "{{ user.data_limit_reset_strategy.value }}";
             let expireDateVar = expireDateInit.includes("∞") ? "∞" : expireDateInit;
-            
+
             let appsJson = {
                 IOS: {
                     Streisand: {
@@ -121,15 +178,39 @@
             };
 
             let settings = {
-                darkMode: 0,
+                darkMode: 1,
                 support: "", // Disabled support
-                proxy: "", 
+                proxy: "",
             };
+            function systemPrefersDark() {
+                return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+            }
 
-            document.addEventListener("alpine:init", () => {
-                settings.darkMode = localStorage.getItem("dark") ?? settings.darkMode;
-                localStorage.setItem("dark", settings.darkMode);
-            });
+            function applyTheme(isDark) {
+                document.body.classList.toggle("dark", !!isDark);
+                settings.darkMode = isDark ? 1 : 0;
+            }
+
+            function initTheme() {
+                const saved = localStorage.getItem("theme"); // "dark" | "light" | null
+                if (saved === "dark") {
+                    applyTheme(true);
+                } else if (saved === "light") {
+                    applyTheme(false);
+                } else {
+                    applyTheme(systemPrefersDark());
+
+                    // Follow system changes only when there is no manual override
+                    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+                    mq.addEventListener?.("change", (e) => {
+                        const stillNoOverride = localStorage.getItem("theme") === null;
+                        if (stillNoOverride) applyTheme(e.matches);
+                    });
+                }
+            }
+
+            document.addEventListener("DOMContentLoaded", initTheme);
+
 
             document.addEventListener("alpine-i18n:ready", () => {
                 window.AlpineI18n.fallbackLocale = "en";
@@ -138,216 +219,647 @@
                 document.body.setAttribute("dir", "ltr"); // Force Left-to-Right
             });
         </script>
+
         <style>
-            /* Global Font - Default System Sans */
+            /* Professional dashboard UI (clean, readable, modern) */
+            :root {
+                --bg-light-1: #f8fafc; /* slate-50 */
+                --bg-light-2: #eef2ff; /* indigo-50 */
+                --bg-dark-1: #020617;  /* slate-950 */
+                --bg-dark-2: #0b1220;  /* deep */
+                --card-light: #ffffff;
+                --card-dark: #0f172a;  /* slate-900 */
+                --border-light: rgba(15, 23, 42, .08);
+                --border-dark: rgba(148, 163, 184, .18);
+                --text-light: #0f172a;
+                --text-dark: #e2e8f0;  /* slate-200 */
+                --muted-light: #475569; /* slate-600 */
+                --muted-dark: #94a3b8;  /* slate-400 */
+            }
+
             body {
                 font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            }
-
-            /* --- LIGHT MODE BACKGROUND --- */
-            #page-container {
-                /* Modern soft gray gradient for light mode */
-                background-color: #f3f4f6;
-                background-image: linear-gradient(to bottom right, #f3f4f6, #e5e7eb);
-                background-repeat: no-repeat;
-                background-attachment: fixed;
-                background-size: cover;
+                background: radial-gradient(1200px circle at 20% 10%, rgba(1, 2, 33, 0.87), transparent 60%),
+                    radial-gradient(900px circle at 80% 30%, rgba(9, 27, 54, 0.18), transparent 55%),
+                    linear-gradient(135deg, var(--bg-light-2), var(--bg-light-1));
+                color: var(--text-light);
                 min-height: 100vh;
             }
-
-            /* --- DARK MODE BACKGROUND (Ultra Dark) --- */
+            /* DARK MODE = DEEP DARK */
             body.dark {
-                background-color: #000000 !important;
+                background: linear-gradient(135deg, #0a1018 0%, #020617 100%) !important;
+                color: var(--text-dark) !important;
             }
-            body.dark #page-container {
-                background: #000000 !important; /* Pure Black */
-                background-image: none !important;
-            }
-            
-            /* Card Styling for Dark Mode */
-            body.dark .dark\:bg-sub-dark {
-                background-color: #0a0a0a !important; /* Nearly black card */
-                border: 1px solid #333333; /* Distinct border for visibility */
-                box-shadow: none !important;
-            }
-            body.dark .text-gray-900 {
-                color: #e5e7eb !important; /* Light text fix */
+            #page-container {
+                background: transparent !important;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 32px 16px;
             }
 
-            /* --- INTERACTIVITY UPGRADES --- */
-            /* Logo Hover */
-            .logo-interactive {
-                transition: transform 0.3s ease;
-                cursor: pointer;
-            }
-            .logo-interactive:hover {
-                transform: scale(1.05);
+            /* Main shell card */
+            .shell {
+                width: min(980px, 100%);
+                border-radius: 20px;
+                background: var(--card-light);
+                border: 1px solid var(--border-light);
+                box-shadow: 0 25px 60px rgba(2, 6, 23, .12);
+                overflow: hidden;
             }
 
-            /* Status Badge Hover */
-            .status-badge {
-                transition: transform 0.2s ease, box-shadow 0.2s ease;
+            body.dark .shell {
+                background: rgba(15, 23, 42, .92);
+                border: 1px solid var(--border-dark);
+                box-shadow: 0 30px 80px rgba(0, 0, 0, .55);
             }
-            .status-badge:hover {
+
+            /* Header */
+            .shell-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                padding: 18px 22px;
+                border-bottom: 1px solid var(--border-light);
+                background: linear-gradient(180deg, rgba(2, 6, 23, .02), transparent);
+            }
+
+            body.dark .shell-header {
+                border-bottom: 1px solid var(--border-dark);
+                background: linear-gradient(180deg, rgba(255, 255, 255, .04), transparent);
+            }
+
+            .brand {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-width: 0;
+            }
+
+            .brand img {
+                width: 44px;
+                height: 44px;
+                border-radius: 12px;
+            }
+
+            .brand .title {
+                font-weight: 700;
+                letter-spacing: .2px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .brand .subtitle {
+                font-size: 12px;
+                color: var(--muted-light);
+            }
+
+            body.dark .brand .subtitle {
+                color: var(--muted-dark);
+            }
+
+            /* Body grid */
+            .shell-body {
+                display: grid;
+                grid-template-columns: 320px 1fr;
+                gap: 0;
+            }
+
+            @media (max-width: 860px) {
+                .shell-body {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            .panel {
+                padding: 22px;
+            }
+
+            .panel + .panel {
+                border-left: 1px solid var(--border-light);
+            }
+
+            body.dark .panel + .panel {
+                border-left: 1px solid var(--border-dark);
+            }
+
+            @media (max-width: 860px) {
+                .panel + .panel {
+                    border-left: none;
+                    border-top: 1px solid var(--border-light);
+                }
+
+                body.dark .panel + .panel {
+                    border-top: 1px solid var(--border-dark);
+                }
+            }
+
+            /* Left profile */
+            .profile {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 14px;
+                text-align: center;
+            }
+
+            .username {
+                font-size: 18px;
+                font-weight: 700;
+            }
+
+            .badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 12px;
+                border-radius: 999px;
+                font-weight: 700;
+                font-size: 13px;
+                letter-spacing: .2px;
+                border: 1px solid rgba(255, 255, 255, .12);
+            }
+
+            body:not(.dark) .badge {
+                border: 1px solid rgba(15, 23, 42, .10);
+            }
+
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                width: 100%;
+                padding: 12px 14px;
+                border-radius: 14px;
+                font-weight: 700;
+                transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
+                border: 1px solid transparent;
+                user-select: none;
+            }
+
+            .btn:active {
+                transform: translateY(1px);
+            }
+
+            .btn-primary {
+                color: white;
+                background: linear-gradient(90deg, rgba(37, 99, 235, 1), rgba(29, 78, 216, 1));
+                box-shadow: 0 10px 24px rgba(37, 99, 235, .25);
+            }
+
+            .btn-primary:hover {
+                box-shadow: 0 14px 30px rgba(37, 99, 235, .30);
+            }
+
+            .btn-ghost {
+                background: rgba(2, 6, 23, .03);
+                border: 1px solid rgba(15, 23, 42, .10);
+                color: var(--text-light);
+            }
+
+            body.dark .btn-ghost {
+                background: rgba(255, 255, 255, .04);
+                border: 1px solid rgba(148, 163, 184, .22);
+                color: var(--text-dark);
+            }
+
+            .btn-ghost:hover {
+                background: rgba(2, 6, 23, .05);
+            }
+
+            body.dark .btn-ghost:hover {
+                background: rgba(255, 255, 255, .06);
+            }
+
+            /* Right stats */
+            .kpi {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+                margin-bottom: 14px;
+            }
+
+            @media (max-width: 520px) {
+                .kpi {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            .kpi-card {
+                border-radius: 16px;
+                padding: 14px 14px;
+                border: 1px solid var(--border-light);
+                background: rgba(2, 6, 23, .02);
+            }
+
+            body.dark .kpi-card {
+                border: 1px solid var(--border-dark);
+                background: rgba(255, 255, 255, .03);
+            }
+
+            .kpi-title {
+                font-size: 12px;
+                font-weight: 700;
+                color: var(--muted-light);
+                margin-bottom: 6px;
+            }
+
+            body.dark .kpi-title {
+                color: var(--muted-dark);
+            }
+
+            .kpi-value {
+                font-size: 14px;
+                font-weight: 800;
+            }
+
+            /* Progress */
+            .progress-wrap {
+                margin-top: 10px;
+                border-radius: 16px;
+                padding: 14px;
+                border: 1px solid var(--border-light);
+            }
+
+            body.dark .progress-wrap {
+                border: 1px solid var(--border-dark);
+            }
+
+            .progress-label {
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+                gap: 12px;
+                font-weight: 800;
+            }
+
+            .progress-sub {
+                font-size: 12px;
+                color: var(--muted-light);
+                font-weight: 700;
+            }
+
+            body.dark .progress-sub {
+                color: var(--muted-dark);
+            }
+
+            .progress-rail {
+                margin-top: 12px;
+                height: 12px;
+                border-radius: 999px;
+                background: rgba(2, 6, 23, .08);
+                overflow: hidden;
+            }
+
+            body.dark .progress-rail {
+                background: rgba(255, 255, 255, .10);
+            }
+
+            .progress-fill {
+                height: 12px;
+                border-radius: 999px;
+                position: relative;
+            }
+
+            .progress-fill span {
+                position: absolute;
+                right: 10px;
+                top: -26px;
+                font-size: 12px;
+                font-weight: 800;
+                color: var(--muted-light);
+            }
+
+            body.dark .progress-fill span {
+                color: var(--muted-dark);
+            }
+
+            /* Tabs area */
+            .tabs-shell {
+                margin-top: 18px;
+                border-top: 1px solid var(--border-light);
+                padding: 18px 22px 22px;
+            }
+
+            body.dark .tabs-shell {
+                border-top: 1px solid var(--border-dark);
+            }
+
+            .tab-btn {
+                padding: 10px 14px !important;
+                border-radius: 12px !important;
+                border: 1px solid transparent !important;
+            }
+
+            .tab-btn[aria-selected="true"] {
+                background: rgba(37, 99, 235, .10);
+                border-color: rgba(37, 99, 235, .25) !important;
+            }
+
+            body.dark .tab-btn[aria-selected="true"] {
+                background: rgba(30, 64, 175, .25);
+                border-color: rgba(29, 78, 216, .45) !important;
+            }
+
+            .row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 12px 12px;
+                border-radius: 14px;
+                border: 1px solid var(--border-light);
+                background: rgba(2, 6, 23, .02);
+                transition: background-color .15s ease, transform .15s ease;
+            }
+
+            body.dark .row {
+                border: 1px solid var(--border-dark);
+                background: rgba(255, 255, 255, .03);
+            }
+
+            .row:hover {
+                background: rgba(2, 6, 23, .04);
                 transform: translateY(-1px);
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             }
 
-            /* Icon Button Hovers */
-            .icon-btn-hover {
-                transition: background-color 0.2s, transform 0.2s;
+            body.dark .row:hover {
+                background: rgba(255, 255, 255, .05);
             }
-            .icon-btn-hover:hover {
-                background-color: rgba(0,0,0,0.05);
-                transform: scale(1.1);
-                border-radius: 50%;
+
+            .row-title {
+                font-weight: 800;
             }
-            body.dark .icon-btn-hover:hover {
-                background-color: rgba(255,255,255,0.1);
+
+            /* UPDATED: solid icon button background (non-transparent) */
+            .icon-btn {
+                width: 38px;
+                height: 38px;
+               
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #eef2ff; /* solid light background */
+               
+                transition: background-color .15s ease, transform .15s ease, box-shadow .15s ease;
+            }
+
+            body.dark .icon-btn {
+                background:transparent; /* solid dark */
+                
+            }
+
+            .icon-btn:hover {
+                background: #e0e7ff;
+                box-shadow: 0 5px 12px rgba(37, 99, 235, 0.25);
+                transform: translateY(-1px);
+            }
+
+            body.dark .icon-btn:hover {
+                background: #111827;
+                box-shadow: 0 5px 16px rgba(15, 23, 42, 0.6);
+            }
+
+            /* Popup */
+            #popup {
+                border-radius: 18px !important;
+                border: 1px solid var(--border-light) !important;
+                background: rgba(255, 255, 255, .98) !important;
+                box-shadow: 0 30px 80px rgba(2, 6, 23, .20) !important;
+            }
+
+            body.dark #popup {
+                border: 1px solid var(--border-dark) !important;
+                background: rgba(15, 23, 42, .96) !important;
+                box-shadow: 0 40px 110px rgba(0, 0, 0, .65) !important;
+            }
+
+            #popup > .content.bg-white {
+                background: transparent !important;
             }
         </style>
     </head>
-    <body :class="settings.darkMode == 1 ? 'dark' : ''" x-data>
-        <div class="fixed top-5 right-5 z-50">
-            <button onclick="toggleTheme()" class="p-2 rounded-full bg-white dark:bg-black shadow-lg text-gray-800 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-900 transition-all duration-300 focus:outline-none ring-1 ring-gray-200 dark:ring-gray-700 hover:scale-110">
-                <svg class="w-6 h-6 hidden dark:block" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                    <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"></path>
-                </svg>
-                <svg class="w-6 h-6 block dark:hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
-                </svg>
-            </button>
-        </div>
 
-        <div class="relative flex min-h-screen flex-col justify-center overflow-hidden bg-main-light dark:bg-main-dark sm:py-6 transition" id="page-container">
-            <div class="relative bg-sub-light dark:bg-sub-dark px-6 pt-10 pb-8 shadow-main-sh dark:shadow-main-sh-dark sm:mx-auto sm:rounded-xl sm:px-10 bg-clip-padding backdrop-filter backdrop-blur-xl bg-opacity-0 w-full max-w-2xl">
-                <div class="mx-auto max-w-xl">
-                    <div class="flex flex-col sm:flex-row space-y-10 sm:space-y-0 sm:divide-x sm:rtl:divide-x-reverse sm:divide-blue-600/50">
-                        <div class="basis-1/3 space-y-5 flex flex-col items-center py-3 sm:ltr:pr-9 sm:rtl:pl-9" x-data>
+    <body x-data>
+        <div id="page-container">
+            <div class="shell">
+                <div class="shell-header">
+                    <div class="brand">
+                        <a href="." class="logo-interactive">
+                            <img src="https://raw.githubusercontent.com/wmm-x/marz-x/424a0549e2b1fbeed463720eadd96e86a2ea8037/template/logo-s.png" alt="Logo" />
+                        </a>
+                        <div class="min-w-0">
+                            <div class="title">{{ user.username }} - Sub Info</div>
+                            <div class="subtitle">Subscription dashboard</div>
+                        </div>
+                    </div>
+                    <!-- Toggle button intentionally hidden/removed -->
+                </div>
+
+                <div class="shell-body">
+                    <!-- Left panel -->
+                    <div class="panel">
+                        <div class="profile">
+                            <a href="." class="logo-interactive" style="display:none"></a>
+
                             <a href="." class="logo-interactive">
                                 <img src="https://raw.githubusercontent.com/wmm-x/marz-x/424a0549e2b1fbeed463720eadd96e86a2ea8037/template/logo-s.png" class="w-28" />
                             </a>
-                            <span class="inline-block dark:text-white text-black font-semibold text-lg">{{ user.username }}</span>
-                            <span class="px-4 py-2 rounded-full inline-block shadow-md shadow-green-900 font-bold text-gray-200 status-badge cursor-default" x-data="{status: '{{ user.status.value }}'}" x-text="[status == 'active' ? $t('active') : status == 'limited' ? $t('limited') : status == 'expired' ? $t('expired') : $t('disabled')]" :class="[status == 'active' ? 'bg-blue-600' : status == 'limited' ? 'bg-red-600' : status == 'expired' ? 'bg-orange-600' : 'bg-gray-600']"></span>
-                            
-                            <a class="rounded-md shadow-lg transition duration-300 bg-blue-600 text-white text-center text-lg py-2 w-4/5 cursor-pointer hover:shadow-xl stroke-blue-600 hover:scale-105" x-text="$t('proxy')" x-show="settings.proxy != ''" x-bind:href="settings.proxy"></a>
-                        </div>
-                        <div class="basis-2/3 flex flex-row items-center sm:ltr:pl-9 sm:rtl:pr-9">
-                            <div class="data-usage w-full" x-data="progressBar" x-init="Alpine.data( 'progressBar', () => progressBar )">
-                                <div class="dark:text-white text-black text-center"><span class="font-bold" x-text="$t('dataUsage')"></span><span dir="ltr">{{ user.used_traffic | bytesformat }} / {% if not user.data_limit %}∞{% else %}{{ user.data_limit | bytesformat }}{% endif %}</span></div>
-                                <div class="bg-gray-200 dark:bg-gray-900 rounded-full h-6 mt-5 drop-shadow-lg overflow-hidden" role="progressbar" :aria-valuenow="width" aria-valuemin="0" aria-valuemax="100">
-                                    <div class="progress-bar rounded-full h-6 text-center w-full dark:text-white text-black text-sm transition leading-6" :class="color" :style="`width: ${width}%; transition: width 2s;`">
-                                        <span class="absolute w-full left-0" x-text="`${width}%`"></span>
-                                    </div>
-                                </div>
-                                <div class="dark:text-white text-black mt-10 text-center"><span class="font-bold" x-text="$t('expirationDate')"></span><span dir="ltr" x-data="{expireDate: ''}" x-init="Alpine.data( 'expireDate', expireDate = expireDateVar )" x-text="expireDate"></span></div>
-                                <div class="dark:text-white text-black mt-3 text-sm text-center" x-text="resetInterval == 'year' ? $t('resetIntervalYear') : resetInterval == 'month' ? $t('resetIntervalMonth') : resetInterval == 'week' ? $t('resetIntervalWeek') : resetInterval == 'day' ? $t('resetIntervalDay') : ''"></div>
-                                <div class="dark:text-white text-black mt-5 text-center"><span class="font-bold" x-text="$t('remainingDays')"></span><span>{% if not user.expire %}∞{% else %}{% set remaining_days = ((user.expire - now().timestamp()) // (24 * 3600)) %}({{ remaining_days | int if (remaining_days | int) > -1 else 0 }}){% endif %}</span><span x-text="$t('remainingDaysSufix')"></span></div>
-                            </div>
+
+                            <span class="username">{{ user.username }}</span>
+
+                            <span
+                                class="badge cursor-default"
+                                x-data="{ status: '{{ user.status.value }}' }"
+                                x-text="status == 'active' ? $t('active') : status == 'limited' ? $t('limited') : status == 'expired' ? $t('expired') : $t('disabled')"
+                                :class="status == 'active' ? 'bg-blue-600' : status == 'limited' ? 'bg-red-600' : status == 'expired' ? 'bg-orange-600' : 'bg-gray-600'">
+                            </span>
+
+                            <a class="btn btn-primary" style="max-width: 260px"
+                               x-text="$t('proxy')" x-show="settings.proxy != ''" x-bind:href="settings.proxy"></a>
                         </div>
                     </div>
-                    
-                    <div class="shadow-box-shadow rounded-lg p-5 mt-7" x-data>
-                        <div class="mb-4 border-b border-gray-200 dark:border-gray-700">
-                            <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" id="main-tab" data-tabs-toggle="#tabs-content" role="tablist">
-                                <li class="flex-1" role="presentation">
-                                    <button class="inline-block p-4 border-b-2 rounded-t-lg w-full transition" id="profile-tab" data-tabs-target="#links" type="button" role="tab" aria-controls="links" aria-selected="false" x-text="$t('links')"></button>
-                                </li>
-                                <li class="flex-1" role="presentation">
-                                    <button class="inline-block w-full p-4 border-b-2 rounded-t-lg hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300 transition" id="apps-tab" data-tabs-target="#apps" type="button" role="tab" aria-controls="apps" aria-selected="false" x-text="$t('apps')"></button>
-                                </li>
-                            </ul>
-                        </div>
-                        <div id="tabs-content">
-                            <div class="hidden" id="links" role="tabpanel" aria-labelledby="links-tab">
-                                <ul class="list-none p-0 m-0">
-                                    <li class="flex px-3 mb-3 justify-between leading-[3.5rem] shadow-lg bg-black/20 rounded-md transition hover:bg-black/5 dark:hover:bg-white/5" x-data>
-                                        <span class="font-semibold flex-1 dark:text-gray-200 text-black cursor-default" x-text="$t('subscription')"></span>
-                                        <div class="flex justify-between items-center">
-                                            <div class="w-8 h-8 ltr:mr-3 rtl:ml-3 cursor-pointer icon-btn-hover flex items-center justify-center" x-data="{copyColor: 'stroke-blue-600'}" @click="() => { copyToClipboard( window.location.href ); copyColor = 'stroke-green-600'; copyColor = 'stroke-green-600'; setTimeout(() => copyColor = 'stroke-blue-600', 2000); }">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" :class="copyColor" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                                                </svg>
-                                            </div>
-                                            <div class="w-8 h-8 cursor-pointer qr-button icon-btn-hover flex items-center justify-center" :data-link="window.location.href">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="stroke-blue-600 dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
-                                                </svg>
-                                            </div>
-                                        </div>
-                                    </li>
-                                    {% if user.status == 'active' %}
-                                    {% for link in user.links %}
-                                    <li class="flex px-3 mb-1 justify-between leading-[3.5rem] rounded-md transition duration-300 hover:bg-black/5 dark:hover:bg-white/5" x-data="{link: '{{ link }}'}">
-                                        <span class="font-semibold flex-1 dark:text-gray-200 text-black cursor-default" x-text="getRemark(link)"></span>
-                                        <div class="flex justify-between items-center">
-                                            <div class="w-8 h-8 ltr:mr-3 rtl:ml-3 cursor-pointer icon-btn-hover flex items-center justify-center" x-data="{copyColor: 'stroke-blue-600'}" @click="() => { copyToClipboard( link ); copyColor = 'stroke-green-600'; copyColor = 'stroke-green-600'; setTimeout(() => copyColor = 'stroke-blue-600', 2000); }">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" :class="copyColor" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                                                </svg>
-                                            </div>
-                                            <div class="w-8 h-8 cursor-pointer qr-button icon-btn-hover flex items-center justify-center" :data-link="link">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="stroke-blue-600 dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
-                                                </svg>
-                                            </div>
-                                        </div>
-                                    </li>
-                                    {% endfor %}
-                                    {% endif %}
-                                </ul>
+
+                    <!-- Right panel -->
+                    <div class="panel">
+                        <div class="kpi">
+                            <div class="kpi-card">
+                                <div class="kpi-title">Status</div>
+                                <div class="kpi-value"
+                                     x-data="{ status: '{{ user.status.value }}' }"
+                                     x-text="status == 'active' ? $t('active') : status == 'limited' ? $t('limited') : status == 'expired' ? $t('expired') : $t('disabled')"></div>
                             </div>
-                            <div class="hidden" id="apps" role="tabpanel" aria-labelledby="apps-tab">
-                                <div class="flex sm:flex-row flex-col">
-                                    <div class="sm:basis-1/5 sm:rtl:ml-4 sm:ltr:mr-4">
-                                        <ul class="flex sm:flex-col text-sm font-medium text-center" id="apps-tab" data-tabs-toggle="#apps-tabs-content" role="tablist">
-                                            <template x-for="item in Object.keys(appsJson)">
-                                                <li class="flex-grow mb-2" role="presentation">
-                                                    <button class="inline-block p-4 border-b-2 rounded-t-lg w-full transition" :id="item + '-tab'" :data-tabs-target="'#' + item" type="button" role="tab" :aria-controls="item" aria-selected="false" x-text="item"></button>
-                                                </li>
-                                            </template>
-                                        </ul>
-                                    </div>
-                                    <div id="apps-tabs-content" class="sm:basis-4/5">
-                                        <template x-for="item in Object.keys(appsJson)">
-                                            <div class="hidden" :id="item" role="tabpanel" :aria-labelledby="item + '-tab'">
-                                                <ul class="list-none p-0 m-0">
-                                                    <template x-for="app in Object.keys(appsJson[item]).reverse()">
-                                                        <template x-for="subApp in appsJson[item][app].url">
-                                                            <li :class="subApp.best ? 'bg-green-600/30 shadow-lg' : 'hover:bg-black/10 hover:shadow-lg'" class="flex px-3 mb-1 justify-between leading-[3.5rem] rounded-md transition duration-300" x-data="{link: subApp.url}">
-                                                                <div class="flex flex-row items-center space-x-3 rtl:space-x-reverse cursor-default">
-                                                                    <span class="font-semibold flex-1 dark:text-gray-200 text-black" x-text="app"></span>
-                                                                    <span :class="subApp.best ? 'dark:text-gray-200 text-gray-800' : 'text-gray-600'" class="text-sm" x-text="subApp.name"></span>
-                                                                </div>
-                                                                <div class="flex justify-between items-center">
-                                                                    
-                                                                    <a class="w-8 h-8 cursor-pointer icon-btn-hover flex items-center justify-center" :data-tooltip-target="'tooltip-download-' + app" :href="link" target="_blank">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="stroke-blue-600 dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                                                                        </svg>
-                                                                    </a>
-                                                                    <div :id="'tooltip-download-' + app" role="tooltip" class="absolute z-10 invisible inline-block px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700">
-                                                                        <span x-text="$t('download')"></span>
-                                                                        <div class="tooltip-arrow" data-popper-arrow></div>
-                                                                    </div>
-                                                                </div>
-                                                            </li>
-                                                        </template>
-                                                    </template>
-                                                </ul>
-                                            </div>
-                                        </template>
+
+                            <div class="kpi-card">
+                                <div class="kpi-title">Reset</div>
+                                <div class="kpi-value"
+                                     x-text="resetInterval == 'year' ? $t('resetIntervalYear') : resetInterval == 'month' ? $t('resetIntervalMonth') : resetInterval == 'week' ? $t('resetIntervalWeek') : resetInterval == 'day' ? $t('resetIntervalDay') : '—'"></div>
+                            </div>
+                        </div>
+
+                        <div class="progress-wrap" x-data="progressBar">
+                            <div class="progress-label">
+                                <span x-text="$t('dataUsage')"></span>
+                                <span class="progress-sub" dir="ltr">{{ user.used_traffic | bytesformat }} / {% if not user.data_limit %}∞{% else %}{{ user.data_limit | bytesformat }}{% endif %}</span>
+                            </div>
+
+                            <div class="progress-rail" role="progressbar" :aria-valuenow="width" aria-valuemin="0" aria-valuemax="100">
+                                <div class="progress-fill" :class="color" :style="`width: ${width}%; transition: width 1.2s;`">
+                                    <span x-text="`${width}%`"></span>
+                                </div>
+                            </div>
+
+                            <div style="display:grid;grid-template-columns: 1fr 1fr;gap:12px;margin-top:14px;">
+                                <div class="kpi-card">
+                                    <div class="kpi-title" x-text="$t('expirationDate')"></div>
+                                    <div class="kpi-value" dir="ltr" x-data="{ expireDate: '' }" x-init="expireDate = expireDateVar" x-text="expireDate"></div>
+                                </div>
+
+                                <div class="kpi-card">
+                                    <div class="kpi-title" x-text="$t('remainingDays')"></div>
+                                    <div class="kpi-value">
+                                        {% if not user.expire %}∞{% else %}{% endif %}
+                                        {% if user.expire %}
+                                          {% set remaining_days = ((user.expire - now().timestamp()) // (24 * 3600)) %}
+                                          {{ remaining_days | int if (remaining_days | int) > -1 else 0 }}
+                                        {% endif %}
+                                        <span class="progress-sub" x-text="$t('remainingDaysSufix')"></span>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <!-- Tabs -->
+                <div class="tabs-shell" x-data>
+                    <div class="mb-4 border-b border-gray-200 dark:border-gray-700">
+                        <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" id="main-tab" data-tabs-toggle="#tabs-content" role="tablist">
+                            <li class="flex-1" role="presentation">
+                                <button class="tab-btn inline-flex items-center justify-center w-full transition" id="profile-tab" data-tabs-target="#links" type="button" role="tab" aria-controls="links" aria-selected="false" x-text="$t('links')"></button>
+                            </li>
+                            <li class="flex-1" role="presentation">
+                                <button class="tab-btn inline-flex items-center justify-center w-full transition" id="apps-tab" data-tabs-target="#apps" type="button" role="tab" aria-controls="apps" aria-selected="false" x-text="$t('apps')"></button>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div id="tabs-content">
+                        <!-- LINKS TAB -->
+                        <div class="hidden" id="links" role="tabpanel" aria-labelledby="links-tab">
+                            <ul class="list-none p-0 m-0">
+                                <li class="row mb-3" x-data>
+                                    <span class="row-title flex-1 cursor-default" x-text="$t('subscription')"></span>
+                                    <div class="flex justify-between items-center">
+                                        <div class="icon-btn ltr:mr-2 rtl:ml-2 cursor-pointer"
+                                            x-data="{ copyColor: 'stroke-blue-600' }"
+                                            @click="() => { 
+                                                copyToClipboard(window.location.href); 
+                                                copyColor = document.body.classList.contains('dark') ? 'stroke-slate-200' : 'stroke-blue-700';
+                                                setTimeout(() => copyColor = 'stroke-blue-600', 2000); 
+                                                showCopyToast($el);
+                                            }">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" :class="copyColor" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                                            </svg>
+                                        </div>
+
+                                        <div class="icon-btn cursor-pointer qr-button" :data-link="window.location.href">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="stroke-blue-600 dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </li>
+
+                                {% if user.status == 'active' %}
+                                {% for link in user.links %}
+                                <li class="row mb-2" x-data="{ link: '{{ link }}' }">
+                                    <span class="row-title flex-1 cursor-default" x-text="getRemark(link)"></span>
+                                    <div class="flex justify-between items-center">
+                                        <div class="icon-btn ltr:mr-2 rtl:ml-2 cursor-pointer"
+                                            x-data="{ copyColor: 'stroke-blue-600' }"
+                                            @click="() => { 
+                                                copyToClipboard(link); 
+                                                copyColor = document.body.classList.contains('dark') ? 'stroke-slate-200' : 'stroke-blue-700'; 
+                                                setTimeout(() => copyColor = 'stroke-blue-600', 2000); 
+                                                showCopyToast($el);
+                                            }">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" :class="copyColor" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                                            </svg>
+                                        </div>
+
+                                        <div class="icon-btn cursor-pointer qr-button" :data-link="link">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="stroke-blue-600 dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </li>
+                                {% endfor %}
+                                {% endif %}
+                            </ul>
+                        </div>
+
+                        <!-- APPS TAB -->
+                        <div class="hidden" id="apps" role="tabpanel" aria-labelledby="apps-tab">
+                            <div class="flex sm:flex-row flex-col">
+                                <div class="sm:basis-1/5 sm:rtl:ml-4 sm:ltr:mr-4">
+                                    <ul class="flex sm:flex-col text-sm font-medium text-center" id="apps-tab-inner" data-tabs-toggle="#apps-tabs-content" role="tablist">
+                                        <template x-for="item in Object.keys(appsJson)">
+                                            <li class="flex-grow mb-2" role="presentation">
+                                                <button class="tab-btn inline-flex items-center justify-center w-full transition" :id="item + '-tab'" :data-tabs-target="'#' + item" type="button" role="tab" :aria-controls="item" aria-selected="false" x-text="item"></button>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+
+                                <div id="apps-tabs-content" class="sm:basis-4/5">
+                                    <template x-for="item in Object.keys(appsJson)">
+                                        <div class="hidden" :id="item" role="tabpanel" :aria-labelledby="item + '-tab'">
+                                            <ul class="list-none p-0 m-0">
+                                                <template x-for="app in Object.keys(appsJson[item]).reverse()">
+                                                    <template x-for="subApp in appsJson[item][app].url">
+                                                        <li :class="subApp.best ? 'bg-emerald-500/15' : ''" class="row mb-2" x-data="{ link: subApp.url }">
+                                                            <div class="flex flex-row items-center space-x-3 rtl:space-x-reverse cursor-default">
+                                                                <span class="row-title flex-1" x-text="app"></span>
+                                                                <span :class="subApp.best ? 'dark:text-gray-200 text-gray-800' : 'text-gray-600'" class="text-sm" x-text="subApp.name"></span>
+                                                            </div>
+                                                            <div class="flex justify-between items-center">
+                                                                <a class="icon-btn cursor-pointer" :data-tooltip-target="'tooltip-download-' + app" :href="link" target="_blank">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" class="stroke-blue-600 dark:hover:stroke-gray-300 hover:stroke-gray-800 transition-colors" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                                                    </svg>
+                                                                </a>
+                                                                <div :id="'tooltip-download-' + app" role="tooltip" class="absolute z-10 invisible inline-block px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700">
+                                                                    <span x-text="$t('download')"></span>
+                                                                    <div class="tooltip-arrow" data-popper-arrow></div>
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                    </template>
+                                                </template>
+                                            </ul>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
             </div>
         </div>
 
+        <!-- Popup -->
         <div id="popup" class="fixed w-fit min-w-[20rem] max-h-[95vh] h-fit p-10 pt-7 shadow-dialog-shadow dark:shadow-2xl rounded-lg top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-main-light dark:bg-main-dark hidden">
             <h2 class="h-10 leading-[2.5rem] mb-4 inline-block font-semibold text-gray-950 dark:text-white"></h2>
             <a class="close absolute ltr:right-10 rtl:left-10 top-7 text-3xl cursor-pointer dark:text-white text-gray-950">&times;</a>
@@ -355,6 +867,57 @@
         </div>
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/1.6.6/flowbite.min.js"></script>
+
+        <!-- Copy Popup Template (hidden, will be cloned) -->
+        <div id="copyid-template"
+             class="copy-toast absolute flex items-center gap-2 text-white px-4 py-2 rounded-xl shadow-xl z-50 hidden animate-fade-in"
+             style="font-size:1rem; font-weight:600; letter-spacing:0.5px; box-shadow:0 4px 16px rgba(15, 23, 42, 0.28); pointer-events:none;">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
+                 class="w-5 h-5 drop-shadow">
+                <rect x="9" y="9" width="10" height="10" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+                <rect x="5" y="5" width="10" height="10" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+            </svg>
+            <span style="font-weight:bold;letter-spacing:0.5px;">Copied!</span>
+        </div>
+
+        <style>
+        @keyframes fade-in {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+        .animate-fade-in {
+            animation: fade-in 0.35s ease-out 1;
+        }
+
+        /* Toast styling – solid + visible in light & dark */
+        .copy-toast {
+            background: linear-gradient(90deg, #22c55e, #059669); /* green solid */
+            color: #ffffff;
+            border-radius: 0.75rem;
+            border: 0;
+        }
+
+        body.dark .copy-toast {
+            background: linear-gradient(90deg, #053f96, #162da3);
+            color: #e5e7eb;
+        }
+
+        .copy-toast svg {
+            color: inherit;
+        }
+
+        /* Mobile tweaks for toast width & centering */
+        @media (max-width: 640px) {
+            .copy-toast {
+                width: auto;
+                min-width: 9rem;
+                max-width: calc(100% - 2.5rem);
+                justify-content: center;
+                text-align: center;
+            }
+        }
+        </style>
+
         <script>
             let progressBar = {
                 width: dataUsage,
@@ -368,7 +931,8 @@
 
             const popup = $("#popup");
             const qrButtons = $(".qr-button");
-            const popupClose = $("#popup > a.close").on("click", () => {
+
+            $("#popup > a.close").on("click", () => {
                 popup.toggleClass("hidden");
                 $("#popup > .content").removeClass("bg-white p-5").html("");
                 $("#popup > h2").html("");
@@ -415,16 +979,14 @@
             }
 
             function toggleTheme() {
-                const body = document.body;
-                if (body.classList.contains('dark')) {
-                    body.classList.remove('dark');
-                    localStorage.setItem('dark', 0);
-                    settings.darkMode = 0;
-                } else {
-                    body.classList.add('dark');
-                    localStorage.setItem('dark', 1);
-                    settings.darkMode = 1;
-                }
+                const isDark = !document.body.classList.contains("dark");
+                applyTheme(isDark);
+                localStorage.setItem("theme", isDark ? "dark" : "light");
+            }
+
+            function clearThemeOverride() {
+                localStorage.removeItem("theme");
+                applyTheme(systemPrefersDark());
             }
         </script>
     </body>

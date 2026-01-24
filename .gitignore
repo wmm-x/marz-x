@@ -1,5 +1,36 @@
+# Node
 node_modules
-# Keep environment variables out of version control
-.env
+/data
+npm-debug.log
+yarn.lock
 
-/generated/prisma
+# Environment & secrets
+.env
+.env.*
+*.key
+*.pem
+
+# Local databases (VERY IMPORTANT)
+*.db
+*.sqlite
+*.sqlite3
+
+# Prisma generated client (will be generated inside image)
+prisma/dev.db
+prisma/*.db
+
+# Git
+.git
+.gitignore
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.yml
+Dockerfile
+
+package-lock.json
+entrypoint.sh
+
