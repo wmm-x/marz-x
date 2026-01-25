@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  dashboard:
+    container_name: marzban-dashboard
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./data:/app/data
+    
+    env_file:
+      - .env
+
+    environment:
+      - DATABASE_URL=file:/app/data/db.sqlite
+      - NODE_ENV=production
