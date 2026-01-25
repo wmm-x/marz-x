@@ -1,5 +1,11 @@
 const axios = require('axios');
+const http = require('http');
+const https = require('https');
 const prisma = require('../utils/prisma');
+
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
+const serviceCache = new Map();
 
 class MarzbanService {
     // Auto optimization: check RAM and restart xray if needed
@@ -41,6 +47,8 @@ class MarzbanService {
     var self = this;
     var client = axios.create({
       baseURL: this.baseUrl,
+      httpAgent: httpAgent,
+      httpsAgent: httpsAgent,
       headers: {
         'Authorization': 'Bearer ' + this.accessToken,
         'Content-Type': 'application/json'
@@ -223,7 +231,18 @@ class MarzbanService {
 }
 
 async function createMarzbanService(config) {
-  return new MarzbanService(config);
+  const cached = serviceCache.get(config.id);
+  if (cached && cached.config) {
+    // Check if config has changed (using updatedAt if available)
+    if (config.updatedAt && cached.config.updatedAt &&
+        new Date(config.updatedAt).getTime() === new Date(cached.config.updatedAt).getTime()) {
+      return cached;
+    }
+  }
+
+  const service = new MarzbanService(config);
+  serviceCache.set(config.id, service);
+  return service;
 }
 
 module.exports = {
