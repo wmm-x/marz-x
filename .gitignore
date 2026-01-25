@@ -5,8 +5,7 @@ npm-debug.log
 yarn.lock
 
 
-/prisma/dev.db
-*.db
+
 *.db-journal
 
 # Environment & secrets
@@ -16,12 +15,11 @@ yarn.lock
 *.pem
 
 # Local databases (VERY IMPORTANT)
-*.db
 *.sqlite
 *.sqlite3
 
 # Prisma generated client (will be generated inside image)
-prisma/dev.db
+prisma/dev. db
 prisma/*.db
 
 # Git
