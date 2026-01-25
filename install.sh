@@ -135,6 +135,7 @@ http {
     default_type application/octet-stream;
     server {
         listen $HTTPS_PORT ssl;
+        error_page 497 https://\$host:\$server_port\$request_uri;
         server_name $DOMAIN_NAME;
         ssl_certificate /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem;
         ssl_certificate_key /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem;
