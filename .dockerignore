@@ -23,6 +23,9 @@ prisma/dev.db
 Dockerfile
 .dockerignore
 docker-compose.yml
+xray_config.json
+README.md
+install.sh
 
 # --- EXCLUDED FROM IGNORE (Allowed) ---
 # We REMOVED 'dist' from this list so your pre-built frontend gets copied!

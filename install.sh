@@ -6,7 +6,7 @@ set -e
 # ==============================================================================
 #                               PRE-CHECKS & SETUP
 # ==============================================================================
-DOCKER_IMAGE="malindamalshan/marzban-dashboard:latest"
+DOCKER_IMAGE="malindamalshan/marzban-dashboard:v2"
 
 # Root Check
 if [ "$EUID" -ne 0 ]; then
