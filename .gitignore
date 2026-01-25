@@ -4,6 +4,11 @@ node_modules
 npm-debug.log
 yarn.lock
 
+
+/prisma/dev.db
+*.db
+*.db-journal
+
 # Environment & secrets
 .env
 .env.*
