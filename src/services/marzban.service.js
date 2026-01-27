@@ -1,5 +1,14 @@
 const axios = require('axios');
 const prisma = require('../utils/prisma');
+const http = require('http');
+const https = require('https');
+
+// Keep-alive agents for connection pooling
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
+
+// Service instance cache
+const serviceCache = new Map();
 
 class MarzbanService {
     // Auto optimization: check RAM and restart xray if needed
@@ -45,7 +54,9 @@ class MarzbanService {
         'Authorization': 'Bearer ' + this.accessToken,
         'Content-Type': 'application/json'
       },
-      timeout: 15000
+      timeout: 15000,
+      httpAgent,
+      httpsAgent
     });
 
     // Add response interceptor for auto re-auth
@@ -223,7 +234,25 @@ class MarzbanService {
 }
 
 async function createMarzbanService(config) {
-  return new MarzbanService(config);
+  if (!config.id || !config.updatedAt) {
+    return new MarzbanService(config);
+  }
+
+  const cached = serviceCache.get(config.id);
+  const configTimestamp = config.updatedAt instanceof Date ? config.updatedAt.getTime() : new Date(config.updatedAt).getTime();
+
+  if (cached && cached.updatedAt >= configTimestamp) {
+    return cached.service;
+  }
+
+  const service = new MarzbanService(config);
+
+  serviceCache.set(config.id, {
+    service,
+    updatedAt: configTimestamp
+  });
+
+  return service;
 }
 
 module.exports = {
