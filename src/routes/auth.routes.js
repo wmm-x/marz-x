@@ -3,11 +3,24 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../utils/prisma');
 const authMiddleware = require('../middleware/auth.middleware');
-// [NEW] Required for backup functionality
 const { exec } = require('child_process');
 const fs = require('fs');
+const multer = require('multer');
+const path = require('path');
 
 const router = express.Router();
+const upload = multer({ dest: '/tmp/uploads/' });
+
+// --- Helper: Find Marzban Directory ---
+// This ensures it works regardless of how you mounted the volume
+function getMarzbanPath() {
+  if (fs.existsSync('/var/lib/marzban/xray_config.json')) return '/var/lib/marzban';
+  if (fs.existsSync('/var/lib/marzban-node/xray_config.json')) return '/var/lib/marzban-node';
+  // Fallback checks for folder existence
+  if (fs.existsSync('/var/lib/marzban')) return '/var/lib/marzban';
+  if (fs.existsSync('/var/lib/marzban-node')) return '/var/lib/marzban-node';
+  return '/var/lib/marzban'; // Default assumption
+}
 
 // Login
 router.post('/login', async function(req, res) {
@@ -19,7 +32,6 @@ router.post('/login', async function(req, res) {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    // Find user by username or email
     var user = await prisma.user.findFirst({ 
       where: { 
         OR: [
@@ -33,13 +45,11 @@ router.post('/login', async function(req, res) {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
-    // Check password
     var validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
-    // Generate token
     var token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' });
 
     res.json({
@@ -92,16 +102,13 @@ router.post('/change-password', authMiddleware, async function(req, res) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Verify current password
     var validPassword = await bcrypt.compare(currentPassword, user.password);
     if (!validPassword) {
       return res.status(400).json({ error: 'Current password is incorrect' });
     }
 
-    // Hash new password
     var hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update password
     await prisma.user.update({
       where: { id: req.userId },
       data: { password: hashedPassword },
@@ -114,7 +121,7 @@ router.post('/change-password', authMiddleware, async function(req, res) {
   }
 });
 
-// Update profile (username and/or password)
+// Update profile
 router.put('/profile', authMiddleware, async function(req, res) {
   try {
     var userId = req.userId;
@@ -122,18 +129,15 @@ router.put('/profile', authMiddleware, async function(req, res) {
     var currentPassword = req.body.currentPassword;
     var newPassword = req.body.newPassword;
     
-    // Current password is always required
     if (!currentPassword) {
       return res.status(400).json({ error: 'Current password is required' });
     }
 
-    // Get current user
     var user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Verify current password
     var validPassword = await bcrypt.compare(currentPassword, user.password);
     if (!validPassword) {
       return res.status(400).json({ error: 'Current password is incorrect' });
@@ -141,9 +145,7 @@ router.put('/profile', authMiddleware, async function(req, res) {
 
     var updateData = {};
     
-    // Update username if provided and different
     if (newUsername && newUsername !== user.username && newUsername !== user.email) {
-      // Check if username already exists
       var existingUser = await prisma.user.findFirst({
         where: { 
           OR: [
@@ -162,7 +164,6 @@ router.put('/profile', authMiddleware, async function(req, res) {
       updateData.email = newUsername;
     }
     
-    // Update password if provided
     if (newPassword) {
       if (newPassword.length < 6) {
         return res.status(400).json({ error: 'Password must be at least 6 characters' });
@@ -194,41 +195,36 @@ router.put('/profile', authMiddleware, async function(req, res) {
   }
 });
 
-// [NEW] Download Full Backup (Dashboard DB + Marzban Node Files)
+// Download Full Backup
 router.get('/backup/full', authMiddleware, async function(req, res) {
   try {
-    // 1. Define all files you want to backup
+    const marzbanPath = getMarzbanPath();
     const filesToBackup = [
-      '/app/data/db.sqlite',                  // Dashboard Database
-      '/var/lib/marzban-node/db.sqlite3',     // Marzban Node Database
-      '/var/lib/marzban-node/xray_config.json' // Marzban Config
+      { path: '/app/data/db.sqlite', name: 'dashboard-db.sqlite' },
+      { path: path.join(marzbanPath, 'db.sqlite3'), name: 'marzban-db.sqlite3' },
+      { path: path.join(marzbanPath, 'xray_config.json'), name: 'xray_config.json' }
     ];
 
-    // 2. Filter out files that don't exist to prevent zip errors
-    const existingFiles = filesToBackup.filter(file => fs.existsSync(file));
+    const existingFiles = filesToBackup.filter(file => fs.existsSync(file.path));
 
     if (existingFiles.length === 0) {
       return res.status(404).json({ error: 'No backup files found on server.' });
     }
 
-    // 3. Prepare Zip Command
     const outputZip = `/tmp/full-backup-${Date.now()}.zip`;
-    // -j: Junk paths (stores just the files, not the folder structure)
-    const command = `zip -j ${outputZip} "${existingFiles.join('" "')}"`;
+    // Use -j to junk paths
+    const paths = existingFiles.map(f => `"${f.path}"`).join(' ');
+    const command = `zip -j ${outputZip} ${paths}`;
 
-    // 4. Execute Zip
     exec(command, (error, stdout, stderr) => {
       if (error) {
         console.error('Zip creation failed:', stderr);
-        return res.status(500).json({ error: 'Failed to create backup archive. Check volume mounts.' });
+        return res.status(500).json({ error: 'Failed to create backup archive.' });
       }
 
-      // 5. Send the file
       const date = new Date().toISOString().split('T')[0];
       res.download(outputZip, `full-backup-${date}.zip`, (err) => {
         if (err) console.error('Download error:', err);
-        
-        // Cleanup: Delete the temp zip file after sending
         fs.unlink(outputZip, () => {}); 
       });
     });
@@ -236,6 +232,90 @@ router.get('/backup/full', authMiddleware, async function(req, res) {
   } catch (error) {
     console.error('Backup error:', error);
     res.status(500).json({ error: 'Failed to generate backup' });
+  }
+});
+
+// [UPDATED] Restore Backup (With Automatic Restart of Multiple Containers)
+router.post('/backup/restore', authMiddleware, upload.single('backup'), async function(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const targetMarzbanPath = getMarzbanPath();
+    const zipPath = req.file.path;
+    const extractPath = `/tmp/restore_${Date.now()}`;
+
+    // 1. Unzip first
+    exec(`mkdir -p ${extractPath} && unzip -o "${zipPath}" -d "${extractPath}"`, (err, stdout, stderr) => {
+      if (err) {
+        console.error('Unzip failed:', stderr);
+        fs.unlink(zipPath, () => {});
+        return res.status(500).json({ error: 'Failed to unzip backup file' });
+      }
+
+      try {
+        // 2. Define copy operations
+        const restoreMap = [
+          // Dashboard DB
+          { src: 'dashboard-db.sqlite', dest: '/app/data/db.sqlite' },
+          { src: 'db.sqlite', dest: '/app/data/db.sqlite' }, // Legacy name
+          
+          // Marzban Files
+          { src: 'marzban-db.sqlite3', dest: path.join(targetMarzbanPath, 'db.sqlite3') },
+          { src: 'db.sqlite3', dest: path.join(targetMarzbanPath, 'db.sqlite3') }, // Legacy name
+          { src: 'xray_config.json', dest: path.join(targetMarzbanPath, 'xray_config.json') }
+        ];
+
+        let restoredCount = 0;
+
+        // 3. Loop and Copy SAFELY
+        restoreMap.forEach(item => {
+          const source = path.join(extractPath, item.src);
+          
+          if (fs.existsSync(source)) {
+            // Ensure destination directory exists
+            const destDir = path.dirname(item.dest);
+            if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+
+            // Copy File
+            fs.copyFileSync(source, item.dest);
+            console.log(`Restored ${item.src} to ${item.dest}`);
+            restoredCount++;
+          }
+        });
+
+        // Cleanup
+        fs.unlink(zipPath, () => {});
+        exec(`rm -rf "${extractPath}"`, () => {});
+
+        if (restoredCount === 0) {
+            return res.status(400).json({ error: 'No recognizable database files found in zip' });
+        }
+
+        // 4. Send Success Response BEFORE Restarting
+        res.json({ message: `Restore successful (${restoredCount} files). Restarting Marzban containers...` });
+
+        // 5. Trigger Restart for BOTH containers (Delayed by 1s to ensure response is sent)
+        setTimeout(() => {
+            console.log('Executing auto-restart for Marzban containers...');
+            exec('docker restart marzban-marzban-1 marzban-dashboard', (err) => {
+                if (err) {
+                    console.error('Auto-restart command failed:', err);
+                } else {
+                    console.log('Containers restarted successfully.');
+                }
+            });
+        }, 1000);
+
+      } catch (e) {
+        console.error('Copy failed:', e);
+        res.status(500).json({ error: 'File copy error: ' + e.message });
+      }
+    });
+  } catch (error) {
+    console.error('Restore error:', error);
+    res.status(500).json({ error: 'Failed to restore backup' });
   }
 });
 

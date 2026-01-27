@@ -6,7 +6,7 @@ set -e
 # ==============================================================================
 #                               PRE-CHECKS & SETUP
 # ==============================================================================
-DOCKER_IMAGE="malindamalshan/marzban-dashboard:v2"
+DOCKER_IMAGE="malindamalshan/marzban-dashboard:v1.1.0"
 
 # Root Check
 if [ "$EUID" -ne 0 ]; then
@@ -168,6 +168,8 @@ services:
       - ./data:/app/data
       - ./certs:/etc/letsencrypt
       - ./nginx.conf:/etc/nginx/nginx.conf
+      - /var/lib/marzban:/var/lib/marzban
+      - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - .env
 EOF

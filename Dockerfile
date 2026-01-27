@@ -17,7 +17,7 @@ RUN npx prisma generate
 # ---------- Final image ----------
 FROM nginx:alpine
 
-RUN apk add --no-cache nodejs npm openssl libc6-compat
+RUN apk add --no-cache nodejs npm openssl libc6-compat zip unzip docker-cli
 
 WORKDIR /app
 
