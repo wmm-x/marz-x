@@ -2,7 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const prisma = require('../utils/prisma');
 const authMiddleware = require('../middleware/auth.middleware');
-const { createMarzbanService } = require('../services/marzban.service');
+const { createMarzbanService, invalidateMarzbanService } = require('../services/marzban.service');
 
 const router = express.Router();
 
@@ -126,6 +126,9 @@ router.put('/configs/:id', authMiddleware, async function(req, res) {
       data: updateData
     });
     
+    // Invalidate cache for this config
+    invalidateMarzbanService(configId);
+
     console.log('Config updated successfully');
     
     res.json({ 
@@ -156,6 +159,9 @@ router.delete('/configs/:id', authMiddleware, async function(req, res) {
     
     await prisma. marzbanConfig.delete({ where: { id: configId } });
     
+    // Invalidate cache for this config
+    invalidateMarzbanService(configId);
+
     res.json({ message: 'Server removed successfully' });
   } catch (error) {
     console.error('Delete config error:', error);
