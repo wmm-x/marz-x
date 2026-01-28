@@ -1,5 +1,14 @@
 const axios = require('axios');
 const prisma = require('../utils/prisma');
+const http = require('http');
+const https = require('https');
+
+// Create shared agents with keepAlive enabled
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
+
+// Cache for MarzbanService instances
+const serviceCache = new Map();
 
 class MarzbanService {
     // Auto optimization: check RAM and restart xray if needed
@@ -45,7 +54,9 @@ class MarzbanService {
         'Authorization': 'Bearer ' + this.accessToken,
         'Content-Type': 'application/json'
       },
-      timeout: 15000
+      timeout: 15000,
+      httpAgent: httpAgent,
+      httpsAgent: httpsAgent
     });
 
     // Add response interceptor for auto re-auth
@@ -223,10 +234,42 @@ class MarzbanService {
 }
 
 async function createMarzbanService(config) {
-  return new MarzbanService(config);
+  // Check cache for existing service instance
+  const cached = serviceCache.get(config.id);
+
+  if (cached) {
+    // If we have a cached instance, check if it's still fresh using updatedAt
+    // If updatedAt is missing (e.g. from partial config), we might want to be safe and recreate,
+    // or assume it's okay. Here we check timestamps if available.
+    const cachedTime = cached.config.updatedAt ? new Date(cached.config.updatedAt).getTime() : 0;
+    const newTime = config.updatedAt ? new Date(config.updatedAt).getTime() : 0;
+
+    // If timestamps match, reuse the service
+    if (cachedTime === newTime) {
+      return cached.service;
+    }
+  }
+
+  const service = new MarzbanService(config);
+
+  // Cache the new service and the config used to create it
+  serviceCache.set(config.id, {
+    service: service,
+    config: config
+  });
+
+  return service;
+}
+
+function invalidateMarzbanService(configId) {
+  if (serviceCache.has(configId)) {
+    serviceCache.delete(configId);
+    console.log(`[MarzbanService] Cache invalidated for config ${configId}`);
+  }
 }
 
 module.exports = {
   MarzbanService: MarzbanService,
-  createMarzbanService: createMarzbanService
+  createMarzbanService: createMarzbanService,
+  invalidateMarzbanService: invalidateMarzbanService
 };
