@@ -3,7 +3,7 @@
     <img src="https://raw.githubusercontent.com/wmm-x/marz-x/6349a7f2403c733b169bd2c8e7a834b8458d7045/template/logo.png" alt="Marz-X Logo">
   </a>
   <br><br>
-  <h1>Marz-X Dashboard</h1>
+  <h1>Marz-X</h1>
   <p><b>A modern and efficient management dashboard for Marzban</b></p>
   <p>
     <a href="#features"> Features</a> •
