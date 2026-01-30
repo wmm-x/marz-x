@@ -499,26 +499,33 @@ if [[ "$INSTALL_SERVER" =~ ^[Yy]$ ]]; then
     # ------------------------------------------------
     # XRAY CONFIG: replace /var/lib/marzban/xray_config.json BEFORE restart
     # ------------------------------------------------
-    echo "Replacing Xray config: $XRAY_CONFIG_FILE"
+    read -r -p "Do you want to create the default Xray inbounds (VLESS: 443/80/8080 + VMESS: 8443)? [y/N]: " ANSWER
 
-    mkdir -p "$(dirname "$XRAY_CONFIG_FILE")"
-
-    TMP_XRAY="$(mktemp)"
-    curl -fsSL "$XRAY_CONFIG_RAW_URL" -o "$TMP_XRAY"
-
-    # Validate JSON (won't allow broken config)
-    jq . "$TMP_XRAY" >/dev/null
-
-    # Backup existing config if it exists
-    if [ -f "$XRAY_CONFIG_FILE" ]; then
-      cp "$XRAY_CONFIG_FILE" "${XRAY_CONFIG_FILE}.bak.$(date +%Y%m%d_%H%M%S)" || true
+    if [[ "$ANSWER" =~ ^[Yy]$ ]]; then
+      echo "Creating default Xray inbounds config..."
+    
+      mkdir -p "$(dirname "$XRAY_CONFIG_FILE")"
+    
+      TMP_XRAY="$(mktemp)"
+      curl -fsSL "$XRAY_CONFIG_RAW_URL" -o "$TMP_XRAY"
+    
+      # Validate JSON (won't allow broken config)
+      jq . "$TMP_XRAY" >/dev/null
+    
+      # Backup existing config if it exists
+      if [ -f "$XRAY_CONFIG_FILE" ]; then
+        cp "$XRAY_CONFIG_FILE" "${XRAY_CONFIG_FILE}.bak.$(date +%Y%m%d_%H%M%S)" || true
+      fi
+    
+      # Replace atomically
+      install -m 644 "$TMP_XRAY" "$XRAY_CONFIG_FILE"
+      rm -f "$TMP_XRAY"
+    
+      chown marzban:marzban "$XRAY_CONFIG_FILE" 2>/dev/null || true
+    else
+      echo "Skipped default inbound creation."
     fi
-
-    # Replace atomically
-    install -m 644 "$TMP_XRAY" "$XRAY_CONFIG_FILE"
-    rm -f "$TMP_XRAY"
-
-    chown marzban:marzban "$XRAY_CONFIG_FILE" 2>/dev/null || true
+    
 
     # ------------------------------------------------
     # CERT RENEWAL SYNC HOOK (DOCKER-SAFE RESTART)
@@ -626,6 +633,7 @@ HOOK
 else
     echo ""
     echo "Skipping Marzban Server installation."
+    echo "------------------------------------------------------------------"
     echo ""
     echo "✅ MARZ-X DASHBOARD Installation Complete!"
     echo "Access at: https://$DOMAIN_NAME:$HTTPS_PORT"
@@ -634,6 +642,8 @@ else
     echo ""
     echo "🔹 To manage the marz-x panel, type: marz-x"
     echo "🔹 To manage the marzban server, type: marzban"
+    echo ""
+    echo "------------------------------------------------------------------"
 
 
 
