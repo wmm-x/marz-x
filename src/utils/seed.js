@@ -30,7 +30,7 @@ async function seedDefaultAdmin() {
     console.log('===============================================');
     console.log('  Default admin user created successfully!');
     console.log('===============================================');
-    console.log('  Email:    ' + defaultEmail);
+    console.log('  Username:    ' + defaultEmail);
     console.log('  Password: ' + defaultPassword);
     console.log('===============================================');
     console.log('  Please change the password after first login! ');
