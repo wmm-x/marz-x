@@ -6,7 +6,7 @@ set -e
 # ==============================================================================
 #                               PRE-CHECKS & SETUP
 # ==============================================================================
-DOCKER_IMAGE="malindamalshan/marzban-dashboard:v1.1.0"
+DOCKER_IMAGE="malindamalshan/mytest:5"
 
 # Root Check
 if [ "$EUID" -ne 0 ]; then
@@ -29,8 +29,8 @@ echo -e "\033[1;90m===========================================================\0
 
 # Install Dependencies
 echo "[PACK] Updating system and installing dependencies..."
-apt update -y >/dev/null 2>&1 || true
-apt install -y curl ca-certificates openssl jq ufw >/dev/null 2>&1 || true
+apt update -y 
+apt install -y curl ca-certificates openssl jq ufw 
 
 # Check/Install Docker
 if ! command -v docker &> /dev/null; then
@@ -373,12 +373,7 @@ if [[ "$INSTALL_SERVER" =~ ^[Yy]$ ]]; then
       echo "Please run as root (sudo)"
       exit 1
     fi
-    echo "Updating system packages (this may take a while)..."
-    # Ensure required tools exist
-    apt update -y >/dev/null 2>&1 || true
-    apt install -y curl ca-certificates openssl unzip wget jq >/dev/null 2>&1 || true
    
-
     echo "Detecting existing Let's Encrypt certificate in: $CERT_BASE"
 
     if [ ! -d "$CERT_BASE" ]; then
@@ -415,7 +410,6 @@ if [[ "$INSTALL_SERVER" =~ ^[Yy]$ ]]; then
     # ------------------------------------------------
     echo "Copying SSL certs to: $CERT_DEST"
 
-    
     mkdir -p "$CERT_DEST"
     cp "$CERT_DIR/fullchain.pem" "$CERT_DEST/fullchain.pem"
     cp "$CERT_DIR/privkey.pem"   "$CERT_DEST/privkey.pem"
@@ -481,35 +475,26 @@ if [[ "$INSTALL_SERVER" =~ ^[Yy]$ ]]; then
     # CUSTOM TEMPLATE: create folder + download index.html
     # ------------------------------------------------
     echo "Installing custom subscription template..."
-    mkdir -p /var/lib/marzban/xray-core && cd /var/lib/marzban/xray-core
-    wget https://github.com/XTLS/xray-core/releases/latest/download/Xray-linux-64.zip
-    unzip Xray-linux-64.zip
-    rm Xray-linux-64.zip
+
     mkdir -p "$TEMPLATE_DIR"
     curl -fsSL "$TEMPLATE_RAW_URL" -o "$TEMPLATE_FILE"
 
     chown -R marzban:marzban /var/lib/marzban/templates 2>/dev/null || true
     chmod -R 755 /var/lib/marzban/templates 2>/dev/null || true
-# Add/Set env vars (bottom, with a blank line)
+
+    # Add/Set env vars (bottom, with a blank line)
     if grep -q '^CUSTOM_TEMPLATES_DIRECTORY=' "$MARZBAN_ENV"; then
       sed -i 's|^CUSTOM_TEMPLATES_DIRECTORY=.*|CUSTOM_TEMPLATES_DIRECTORY="/var/lib/marzban/templates/"|' "$MARZBAN_ENV"
     else
       echo "" >> "$MARZBAN_ENV"
       echo 'CUSTOM_TEMPLATES_DIRECTORY="/var/lib/marzban/templates/"' >> "$MARZBAN_ENV"
     fi
-    
+
     if grep -q '^SUBSCRIPTION_PAGE_TEMPLATE=' "$MARZBAN_ENV"; then
       sed -i 's|^SUBSCRIPTION_PAGE_TEMPLATE=.*|SUBSCRIPTION_PAGE_TEMPLATE="subscription/index.html"|' "$MARZBAN_ENV"
     else
       echo 'SUBSCRIPTION_PAGE_TEMPLATE="subscription/index.html"' >> "$MARZBAN_ENV"
     fi
-    
-    if grep -q '^XRAY_EXECUTABLE_PATH=' "$MARZBAN_ENV"; then
-      sed -i 's|^XRAY_EXECUTABLE_PATH=.*|XRAY_EXECUTABLE_PATH="/var/lib/marzban/xray-core/xray"|' "$MARZBAN_ENV"
-    else
-      echo 'XRAY_EXECUTABLE_PATH="/var/lib/marzban/xray-core/xray"' >> "$MARZBAN_ENV"
-    fi
-
 
     # ------------------------------------------------
     # XRAY CONFIG: replace /var/lib/marzban/xray_config.json BEFORE restart

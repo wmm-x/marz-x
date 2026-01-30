@@ -9,14 +9,14 @@ function getOptimizationThreshold(totalMemBytes) {
 
   if (totalGB > 16) {
     return 30;
-  } else if (totalGB > 4) { 
+  } else if (totalGB > 7.7) { 
     return 15; 
   } else if (totalGB >= 3.8) {
     return 20;
   } else if (totalGB >= 2) {
     return 40;
   } else {
-    return 50;
+    return 60;
   }
 }
 
