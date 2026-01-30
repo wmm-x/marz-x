@@ -11,8 +11,7 @@ const path = require('path');
 const router = express.Router();
 const upload = multer({ dest: '/tmp/uploads/' });
 
-// --- Helper: Find Marzban Directory ---
-// This ensures it works regardless of how you mounted the volume
+
 function getMarzbanPath() {
   if (fs.existsSync('/var/lib/marzban/xray_config.json')) return '/var/lib/marzban';
   if (fs.existsSync('/var/lib/marzban-node/xray_config.json')) return '/var/lib/marzban-node';
@@ -212,7 +211,7 @@ router.get('/backup/full', authMiddleware, async function(req, res) {
     }
 
     const outputZip = `/tmp/full-backup-${Date.now()}.zip`;
-    // Use -j to junk paths
+    
     const paths = existingFiles.map(f => `"${f.path}"`).join(' ');
     const command = `zip -j ${outputZip} ${paths}`;
 
@@ -235,7 +234,7 @@ router.get('/backup/full', authMiddleware, async function(req, res) {
   }
 });
 
-// [UPDATED] Restore Backup (With Automatic Restart of Multiple Containers)
+//Restore Backup (With Automatic Restart of Multiple Containers)
 router.post('/backup/restore', authMiddleware, upload.single('backup'), async function(req, res) {
   try {
     if (!req.file) {
@@ -246,7 +245,7 @@ router.post('/backup/restore', authMiddleware, upload.single('backup'), async fu
     const zipPath = req.file.path;
     const extractPath = `/tmp/restore_${Date.now()}`;
 
-    // 1. Unzip first
+    
     exec(`mkdir -p ${extractPath} && unzip -o "${zipPath}" -d "${extractPath}"`, (err, stdout, stderr) => {
       if (err) {
         console.error('Unzip failed:', stderr);
@@ -255,13 +254,13 @@ router.post('/backup/restore', authMiddleware, upload.single('backup'), async fu
       }
 
       try {
-        // 2. Define copy operations
+       
         const restoreMap = [
           // Dashboard DB
           { src: 'dashboard-db.sqlite', dest: '/app/data/db.sqlite' },
           { src: 'db.sqlite', dest: '/app/data/db.sqlite' }, // Legacy name
           
-          // Marzban Files
+          // Marzban DB & Config
           { src: 'marzban-db.sqlite3', dest: path.join(targetMarzbanPath, 'db.sqlite3') },
           { src: 'db.sqlite3', dest: path.join(targetMarzbanPath, 'db.sqlite3') }, // Legacy name
           { src: 'xray_config.json', dest: path.join(targetMarzbanPath, 'xray_config.json') }
@@ -269,23 +268,23 @@ router.post('/backup/restore', authMiddleware, upload.single('backup'), async fu
 
         let restoredCount = 0;
 
-        // 3. Loop and Copy SAFELY
+      
         restoreMap.forEach(item => {
           const source = path.join(extractPath, item.src);
           
           if (fs.existsSync(source)) {
-            // Ensure destination directory exists
+            
             const destDir = path.dirname(item.dest);
             if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
 
-            // Copy File
+           
             fs.copyFileSync(source, item.dest);
             console.log(`Restored ${item.src} to ${item.dest}`);
             restoredCount++;
           }
         });
 
-        // Cleanup
+       
         fs.unlink(zipPath, () => {});
         exec(`rm -rf "${extractPath}"`, () => {});
 
@@ -293,10 +292,10 @@ router.post('/backup/restore', authMiddleware, upload.single('backup'), async fu
             return res.status(400).json({ error: 'No recognizable database files found in zip' });
         }
 
-        // 4. Send Success Response BEFORE Restarting
+        
         res.json({ message: `Restore successful (${restoredCount} files). Restarting Marzban containers...` });
 
-        // 5. Trigger Restart for BOTH containers (Delayed by 1s to ensure response is sent)
+        
         setTimeout(() => {
             console.log('Executing auto-restart for Marzban containers...');
             exec('docker restart marzban-marzban-1 marzban-dashboard', (err) => {
