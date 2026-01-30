@@ -3,7 +3,7 @@
     <img src="https://raw.githubusercontent.com/wmm-x/marz-x/6349a7f2403c733b169bd2c8e7a834b8458d7045/template/logo.png" alt="Marz-X Logo">
   </a>
   <br><br>
-  <h1>Marz-X Dashboard</h1>
+  <h1>Marz-X</h1>
   <p><b>A modern and efficient management dashboard for Marzban</b></p>
   <p>
     <a href="#features"> Features</a> •
@@ -33,6 +33,7 @@ This project includes an automatic installation script that sets up Docker, Ngin
 - **Advanced User Management:** Create, edit, suspend, and reset user traffic with precise control over expiry dates.
 - **Subscription Management:** Easily manage plans, data limits, and custom subscription links.
 - **Multi-Server Support:** Manage multiple Marzban nodes from a single centralized interface.
+- **Backup and restore feature** Added backup and restore functionality to ensure data safety and easy recovery
 - **Fully Dockerized:** Runs in a secure, isolated environment for easy updates and maintenance.
 
 
