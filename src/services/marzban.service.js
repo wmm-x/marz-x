@@ -1,5 +1,11 @@
 const axios = require('axios');
+const http = require('http');
+const https = require('https');
 const prisma = require('../utils/prisma');
+
+// Create shared agents with keepAlive enabled for connection pooling
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
 
 class MarzbanService {
     // Auto optimization: check RAM and restart xray if needed
@@ -45,7 +51,9 @@ class MarzbanService {
         'Authorization': 'Bearer ' + this.accessToken,
         'Content-Type': 'application/json'
       },
-      timeout: 15000
+      timeout: 15000,
+      httpAgent: httpAgent,
+      httpsAgent: httpsAgent
     });
 
     // Add response interceptor for auto re-auth
