@@ -1,0 +1,3 @@
+## 2024-05-23 - Missing Connection Pooling in MarzbanService
+**Learning:** The `MarzbanService` class creates a new `axios` instance for every request in `createClient`, but it does not configure `httpAgent` or `httpsAgent` with `keepAlive: true`. This causes a new TCP connection (and TLS handshake) to be established for every single API call to the Marzban backend, significantly increasing latency and CPU overhead.
+**Action:** Always verify `axios` or `fetch` usage in backend services to ensure connection pooling (Keep-Alive) is enabled, especially when communicating with the same upstream service repeatedly. Use shared `http.Agent` and `https.Agent` instances.
