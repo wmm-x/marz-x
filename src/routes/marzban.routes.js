@@ -119,8 +119,13 @@ router.put('/configs/:id', authMiddleware, async function(req, res) {
         if (!urlValidation.valid) {
           return res.status(400).json({ error: 'Invalid endpoint URL: ' + urlValidation.error });
         }
+
+        // Normalize the endpoint URL and ensure that only the origin is used,
+        // so any user-controlled path/query/fragment is ignored when building the request URL.
+        const parsedEndpoint = new URL(endpointUrl);
+        const finalUrl = parsedEndpoint.origin + '/api/admin/token';
         
-        var authRes = await axios. post(endpointUrl + '/api/admin/token', params, {
+        var authRes = await axios. post(finalUrl, params, {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           timeout: 10000,
           maxRedirects: 0  // Prevent redirect-based SSRF attacks
