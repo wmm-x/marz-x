@@ -4,8 +4,78 @@ const prisma = require('../utils/prisma');
 const authMiddleware = require('../middleware/auth.middleware');
 const { createMarzbanService } = require('../services/marzban.service');
 const { validateUrl } = require('../utils/urlValidator');
+const dns = require('dns').promises;
+const net = require('net');
 
 const router = express.Router();
+
+/**
+ * Check if the given hostname resolves to a private, loopback, link-local, or multicast address.
+ * This is used as an additional safeguard against SSRF when using user-controlled endpoints.
+ */
+async function isPrivateOrLocalHost(hostname) {
+  const lowered = (hostname || '').toLowerCase();
+
+  // Explicit localhost-style hostnames
+  if (
+    lowered === 'localhost' ||
+    lowered === '127.0.0.1' ||
+    lowered === '::1'
+  ) {
+    return true;
+  }
+
+  let addresses = [];
+  try {
+    const result = await dns.lookup(hostname, { all: true });
+    addresses = result.map(r => r.address);
+  } catch (e) {
+    // If hostname cannot be resolved, treat it as invalid for our purposes.
+    return true;
+  }
+
+  function isPrivateIp(ip) {
+    const version = net.isIP(ip);
+    if (!version) {
+      return true;
+    }
+
+    if (version === 4) {
+      const parts = ip.split('.').map(n => parseInt(n, 10));
+      const [a, b] = parts;
+
+      // 10.0.0.0/8
+      if (a === 10) return true;
+      // 172.16.0.0/12
+      if (a === 172 && b >= 16 && b <= 31) return true;
+      // 192.168.0.0/16
+      if (a === 192 && b === 168) return true;
+      // 127.0.0.0/8 (loopback)
+      if (a === 127) return true;
+      // 169.254.0.0/16 (link-local)
+      if (a === 169 && b === 254) return true;
+      // 0.0.0.0/8, 224.0.0.0/4 and above (multicast / reserved)
+      if (a === 0 || a >= 224) return true;
+
+      return false;
+    }
+
+    // IPv6: treat link-local, loopback, and unique local as private
+    const normalized = ip.toLowerCase();
+    if (
+      normalized === '::1' ||          // loopback
+      normalized.startsWith('fe80:') || // link-local
+      normalized.startsWith('fc00:') || // unique local
+      normalized.startsWith('fd00:')    // unique local
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  return addresses.some(isPrivateIp);
+}
 
 // Connect to Marzban (create new config)
 router.post('/connect', authMiddleware, async function(req, res) {
@@ -118,6 +188,13 @@ router.put('/configs/:id', authMiddleware, async function(req, res) {
         const urlValidation = validateUrl(endpointUrl);
         if (!urlValidation.valid) {
           return res.status(400).json({ error: 'Invalid endpoint URL: ' + urlValidation.error });
+        }
+
+
+        // Additional SSRF protection: disallow localhost/private/internal endpoints
+        const isPrivate = await isPrivateOrLocalHost(parsedEndpoint.hostname);
+        if (isPrivate) {
+          return res.status(400).json({ error: 'Endpoint URL host is not allowed' });
         }
 
         // Normalize the endpoint URL and ensure that only the origin is used,
