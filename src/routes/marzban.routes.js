@@ -3,6 +3,7 @@ const axios = require('axios');
 const prisma = require('../utils/prisma');
 const authMiddleware = require('../middleware/auth.middleware');
 const { createMarzbanService } = require('../services/marzban.service');
+const { validateUrl } = require('../utils/urlValidator');
 
 const router = express.Router();
 
@@ -14,6 +15,12 @@ router.post('/connect', authMiddleware, async function(req, res) {
     var username = req.body.username;
     var password = req.body. password;
     
+    // Validate URL to prevent SSRF attacks
+    const urlValidation = validateUrl(endpointUrl);
+    if (!urlValidation.valid) {
+      return res.status(400).json({ error: urlValidation.error });
+    }
+    
     endpointUrl = endpointUrl.replace(/\/+$/, '');
     
     var params = new URLSearchParams();
@@ -22,7 +29,8 @@ router.post('/connect', authMiddleware, async function(req, res) {
     
     var authRes = await axios. post(endpointUrl + '/api/admin/token', params, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      timeout: 10000
+      timeout: 10000,
+      maxRedirects: 0  // Prevent redirect-based SSRF attacks
     });
     
     if (! authRes.data || !authRes.data.access_token) {
@@ -90,6 +98,11 @@ router.put('/configs/:id', authMiddleware, async function(req, res) {
     }
     
     if (req.body.endpointUrl && req.body.endpointUrl.trim()) {
+      // Validate URL to prevent SSRF attacks
+      const urlValidation = validateUrl(req.body.endpointUrl.trim());
+      if (!urlValidation.valid) {
+        return res.status(400).json({ error: urlValidation.error });
+      }
       updateData.endpointUrl = req.body.endpointUrl.trim().replace(/\/+$/, '');
     }
     
@@ -101,9 +114,16 @@ router.put('/configs/:id', authMiddleware, async function(req, res) {
         
         var endpointUrl = updateData.endpointUrl || existingConfig. endpointUrl;
         
+        // Validate the endpoint URL before using it (even if it's from existing config)
+        const urlValidation = validateUrl(endpointUrl);
+        if (!urlValidation.valid) {
+          return res.status(400).json({ error: 'Invalid endpoint URL: ' + urlValidation.error });
+        }
+        
         var authRes = await axios. post(endpointUrl + '/api/admin/token', params, {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          timeout: 10000
+          timeout: 10000,
+          maxRedirects: 0  // Prevent redirect-based SSRF attacks
         });
         
         if (authRes.data && authRes. data.access_token) {

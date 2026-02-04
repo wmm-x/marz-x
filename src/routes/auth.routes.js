@@ -3,10 +3,12 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../utils/prisma');
 const authMiddleware = require('../middleware/auth.middleware');
+const { authRateLimiter } = require('../middleware/rateLimit.middleware');
 const { exec } = require('child_process');
 const fs = require('fs');
 const multer = require('multer');
 const path = require('path');
+const { sanitizeFilename, validatePathWithinRoot, validateFileAgainstAllowlist } = require('../utils/pathValidator');
 
 const router = express.Router();
 const upload = multer({ dest: '/tmp/uploads/' });
@@ -15,14 +17,13 @@ const upload = multer({ dest: '/tmp/uploads/' });
 function getMarzbanPath() {
   if (fs.existsSync('/var/lib/marzban/xray_config.json')) return '/var/lib/marzban';
   if (fs.existsSync('/var/lib/marzban-node/xray_config.json')) return '/var/lib/marzban-node';
-  // Fallback checks for folder existence
   if (fs.existsSync('/var/lib/marzban')) return '/var/lib/marzban';
   if (fs.existsSync('/var/lib/marzban-node')) return '/var/lib/marzban-node';
   return '/var/lib/marzban'; // Default assumption
 }
 
 // Login
-router.post('/login', async function(req, res) {
+router.post('/login', authRateLimiter, async function(req, res) {
   try {
     var username = req.body.username || req.body.email;
     var password = req.body.password;
@@ -245,8 +246,17 @@ router.post('/backup/restore', authMiddleware, upload.single('backup'), async fu
     const zipPath = req.file.path;
     const extractPath = `/tmp/restore_${Date.now()}`;
 
+    // Allowlist of expected backup file names (prevent arbitrary file restoration)
+    const allowedFilenames = [
+      'dashboard-db.sqlite',
+      'db.sqlite',
+      'marzban-db.sqlite3',
+      'db.sqlite3',
+      'xray_config.json'
+    ];
+
     
-    exec(`mkdir -p ${extractPath} && unzip -o "${zipPath}" -d "${extractPath}"`, (err, stdout, stderr) => {
+    exec(`mkdir -p "${extractPath}" && unzip -o "${zipPath}" -d "${extractPath}"`, (err, stdout, stderr) => {
       if (err) {
         console.error('Unzip failed:', stderr);
         fs.unlink(zipPath, () => {});
@@ -254,6 +264,41 @@ router.post('/backup/restore', authMiddleware, upload.single('backup'), async fu
       }
 
       try {
+        
+        const extractedFiles = fs.readdirSync(extractPath);
+        
+        // Validate all extracted files before processing
+        for (const file of extractedFiles) {
+        
+          const sanitized = sanitizeFilename(file);
+          
+          // Check if sanitized name matches original (detect attack attempts)
+          if (sanitized !== file) {
+            console.error(`Suspicious filename detected: ${file}`);
+            fs.unlink(zipPath, () => {});
+            exec(`rm -rf "${extractPath}"`, () => {});
+            return res.status(400).json({ error: 'Invalid file names in backup archive' });
+          }
+          
+          // Validate against allowlist
+          const fileValidation = validateFileAgainstAllowlist(file, allowedFilenames);
+          if (!fileValidation.valid) {
+            console.error(`File not in allowlist: ${file}`);
+            fs.unlink(zipPath, () => {});
+            exec(`rm -rf "${extractPath}"`, () => {});
+            return res.status(400).json({ error: 'Backup contains unexpected files' });
+          }
+          
+          // Validate the full path is within extraction directory
+          const fullPath = path.join(extractPath, file);
+          const pathValidation = validatePathWithinRoot(fullPath, extractPath);
+          if (!pathValidation.valid) {
+            console.error(`Path traversal attempt detected: ${file}`);
+            fs.unlink(zipPath, () => {});
+            exec(`rm -rf "${extractPath}"`, () => {});
+            return res.status(400).json({ error: 'Path traversal attempt detected' });
+          }
+        }
        
         const restoreMap = [
           // Dashboard DB
@@ -270,7 +315,15 @@ router.post('/backup/restore', authMiddleware, upload.single('backup'), async fu
 
       
         restoreMap.forEach(item => {
+
           const source = path.join(extractPath, item.src);
+          
+          // Double-check the source path is within extraction directory
+          const sourceValidation = validatePathWithinRoot(source, extractPath);
+          if (!sourceValidation.valid) {
+            console.error(`Source path validation failed: ${item.src}`);
+            return; 
+          }
           
           if (fs.existsSync(source)) {
             
@@ -309,6 +362,8 @@ router.post('/backup/restore', authMiddleware, upload.single('backup'), async fu
 
       } catch (e) {
         console.error('Copy failed:', e);
+        fs.unlink(zipPath, () => {});
+        exec(`rm -rf "${extractPath}"`, () => {});
         res.status(500).json({ error: 'File copy error: ' + e.message });
       }
     });

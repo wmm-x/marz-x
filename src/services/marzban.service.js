@@ -45,7 +45,8 @@ class MarzbanService {
         'Authorization': 'Bearer ' + this.accessToken,
         'Content-Type': 'application/json'
       },
-      timeout: 15000
+      timeout: 15000,
+      maxRedirects: 0  // Disable redirects to prevent SSRF via redirects
     });
 
     // Add response interceptor for auto re-auth
@@ -94,8 +95,6 @@ class MarzbanService {
       console.log('Server:', this.config.name);
       console.log('URL:', this.baseUrl);
       console.log('Username:', this.config.marzbanUsername);
-      console.log('Password length:', this.config.encryptedPassword ? this.config.encryptedPassword.length : 0);
-      console.log('Password preview:', this.config.encryptedPassword ? this.config.encryptedPassword.substring(0, 5) + '...' : 'EMPTY');
 
       var params = new URLSearchParams();
       params.append('username', this.config.marzbanUsername);
@@ -103,9 +102,12 @@ class MarzbanService {
 
       console.log('Sending auth request to:', this.baseUrl + '/api/admin/token');
 
+      // Use axios directly (not this.client) to avoid circular dependency,
+      // but still limit redirects and use timeout for DNS rebinding protection
       var authRes = await axios.post(this.baseUrl + '/api/admin/token', params, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        timeout: 10000
+        timeout: 10000,
+        maxRedirects: 0  // Prevent redirects to protect against SSRF
       });
 
       if (authRes.data && authRes.data.access_token) {
@@ -143,14 +145,11 @@ class MarzbanService {
   }
 
   async getHosts() {
-    // This calls the real /api/hosts endpoint on your Marzban server
     var res = await this.client.get('/api/hosts');
     return res.data;
   }
 
-  // Add inside the MarzbanService class
   async updateHosts(data) {
-    // Marzban uses PUT for updating hosts
     var res = await this.client.put('/api/hosts', data);
     return res.data;
   }
@@ -160,8 +159,7 @@ class MarzbanService {
     var params = {};
     if (start) params.start = start;
     if (end) params.end = end;
-    
-    // Calls the Marzban endpoint: /api/nodes/usage?start=...&end=...
+  
     var res = await this.client.get('/api/nodes/usage', { params: params });
     return res.data;
   }
