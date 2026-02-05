@@ -1,5 +1,11 @@
 const axios = require('axios');
+const http = require('http');
+const https = require('https');
 const prisma = require('../utils/prisma');
+
+// Create shared agents with keepAlive enabled to reuse TCP connections
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
 
 class MarzbanService {
     // Auto optimization: check RAM and restart xray if needed
@@ -45,6 +51,8 @@ class MarzbanService {
         'Authorization': 'Bearer ' + this.accessToken,
         'Content-Type': 'application/json'
       },
+      httpAgent: httpAgent,
+      httpsAgent: httpsAgent,
       timeout: 15000,
       maxRedirects: 0  // Disable redirects to prevent SSRF via redirects
     });
