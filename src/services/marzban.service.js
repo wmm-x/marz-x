@@ -2,6 +2,7 @@ const axios = require('axios');
 const http = require('http');
 const https = require('https');
 const prisma = require('../utils/prisma');
+const { validateUrl } = require('../utils/urlValidator');
 
 // Create shared agents with keepAlive enabled to reuse TCP connections
 const httpAgent = new http.Agent({ keepAlive: true });
@@ -37,6 +38,12 @@ class MarzbanService {
       }
     }
   constructor(config) {
+    // Validate URL to prevent SSRF from data source
+    const urlValidation = validateUrl(config.endpointUrl);
+    if (!urlValidation.valid) {
+      throw new Error(`Invalid Marzban endpoint URL: ${urlValidation.error}`);
+    }
+
     this.config = config;
     this.baseUrl = config.endpointUrl.replace(/\/+$/, '');
     this.accessToken = config.encryptedAccessToken;
