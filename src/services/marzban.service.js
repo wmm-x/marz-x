@@ -44,15 +44,15 @@ class MarzbanService {
   }
 
   createClient() {
-    var self = this;
-    var client = axios.create({
+    const self = this;
+    const client = axios.create({
       baseURL: this.baseUrl,
       headers: {
         'Authorization': 'Bearer ' + this.accessToken,
         'Content-Type': 'application/json'
       },
-      httpAgent: httpAgent,
-      httpsAgent: httpsAgent,
+      httpAgent,
+      httpsAgent,
       timeout: 15000,
       maxRedirects: 0  // Disable redirects to prevent SSRF via redirects
     });
@@ -63,7 +63,7 @@ class MarzbanService {
         return response;
       },
       async function (error) {
-        var originalRequest = error.config;
+        const originalRequest = error.config;
 
         // If 401 and not already retried
         if (error.response && error.response.status === 401 && !originalRequest._retry) {
