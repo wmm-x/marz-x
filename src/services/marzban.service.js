@@ -1,5 +1,12 @@
 const axios = require('axios');
+const http = require('http');
+const https = require('https');
 const prisma = require('../utils/prisma');
+const { validateUrl } = require('../utils/urlValidator');
+
+// Create shared agents with keepAlive enabled to reuse TCP connections
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
 
 class MarzbanService {
     // Auto optimization: check RAM and restart xray if needed
@@ -31,6 +38,12 @@ class MarzbanService {
       }
     }
   constructor(config) {
+    // Validate URL to prevent SSRF from data source
+    const urlValidation = validateUrl(config.endpointUrl);
+    if (!urlValidation.valid) {
+      throw new Error(`Invalid Marzban endpoint URL: ${urlValidation.error}`);
+    }
+
     this.config = config;
     this.baseUrl = config.endpointUrl.replace(/\/+$/, '');
     this.accessToken = config.encryptedAccessToken;
@@ -38,13 +51,15 @@ class MarzbanService {
   }
 
   createClient() {
-    var self = this;
-    var client = axios.create({
+    const self = this;
+    const client = axios.create({
       baseURL: this.baseUrl,
       headers: {
         'Authorization': 'Bearer ' + this.accessToken,
         'Content-Type': 'application/json'
       },
+      httpAgent,
+      httpsAgent,
       timeout: 15000,
       maxRedirects: 0  // Disable redirects to prevent SSRF via redirects
     });
@@ -55,7 +70,7 @@ class MarzbanService {
         return response;
       },
       async function (error) {
-        var originalRequest = error.config;
+        const originalRequest = error.config;
 
         // If 401 and not already retried
         if (error.response && error.response.status === 401 && !originalRequest._retry) {
@@ -65,7 +80,7 @@ class MarzbanService {
 
           try {
             // Re-authenticate
-            var newToken = await self.refreshToken();
+            const newToken = await self.refreshToken();
 
             if (newToken) {
               // Update the client header
@@ -96,7 +111,7 @@ class MarzbanService {
       console.log('URL:', this.baseUrl);
       console.log('Username:', this.config.marzbanUsername);
 
-      var params = new URLSearchParams();
+      const params = new URLSearchParams();
       params.append('username', this.config.marzbanUsername);
       params.append('password', this.config.encryptedPassword);
 
@@ -104,14 +119,14 @@ class MarzbanService {
 
       // Use axios directly (not this.client) to avoid circular dependency,
       // but still limit redirects and use timeout for DNS rebinding protection
-      var authRes = await axios.post(this.baseUrl + '/api/admin/token', params, {
+      const authRes = await axios.post(this.baseUrl + '/api/admin/token', params, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         timeout: 10000,
         maxRedirects: 0  // Prevent redirects to protect against SSRF
       });
 
       if (authRes.data && authRes.data.access_token) {
-        var newToken = authRes.data.access_token;
+        const newToken = authRes.data.access_token;
 
         await prisma.marzbanConfig.update({
           where: { id: this.config.id },
@@ -135,87 +150,87 @@ class MarzbanService {
   }
 
   async getSystemStats() {
-    var res = await this.client.get('/api/system');
+    const res = await this.client.get('/api/system');
     return res.data;
   }
 
   async getInbounds() {
-    var res = await this.client.get('/api/inbounds');
+    const res = await this.client.get('/api/inbounds');
     return res.data;
   }
 
   async getHosts() {
-    var res = await this.client.get('/api/hosts');
+    const res = await this.client.get('/api/hosts');
     return res.data;
   }
 
   async updateHosts(data) {
-    var res = await this.client.put('/api/hosts', data);
+    const res = await this.client.put('/api/hosts', data);
     return res.data;
   }
 
   
   async getNodesUsage(start, end) {
-    var params = {};
+    const params = {};
     if (start) params.start = start;
     if (end) params.end = end;
   
-    var res = await this.client.get('/api/nodes/usage', { params: params });
+    const res = await this.client.get('/api/nodes/usage', { params: params });
     return res.data;
   }
 
   async getNodes() {
-    var res = await this.client.get('/api/nodes');
+    const res = await this.client.get('/api/nodes');
     return res.data;
   }
 
   async getUsers(params) {
-    var res = await this.client.get('/api/users', { params: params });
+    const res = await this.client.get('/api/users', { params: params });
     return res.data;
   }
 
   async getUser(username) {
-    var res = await this.client.get('/api/user/' + encodeURIComponent(username));
+    const res = await this.client.get('/api/user/' + encodeURIComponent(username));
     return res.data;
   }
 
   async createUser(data) {
-    var res = await this.client.post('/api/user', data);
+    const res = await this.client.post('/api/user', data);
     return res.data;
   }
 
   async updateUser(username, data) {
-    var res = await this.client.put('/api/user/' + encodeURIComponent(username), data);
+    const res = await this.client.put('/api/user/' + encodeURIComponent(username), data);
     return res.data;
   }
 
   async deleteUser(username) {
-    var res = await this.client.delete('/api/user/' + encodeURIComponent(username));
+    const res = await this.client.delete('/api/user/' + encodeURIComponent(username));
     return res.data;
   }
 
   async resetUserTraffic(username) {
-    var res = await this.client.post('/api/user/' + encodeURIComponent(username) + '/reset');
+    const res = await this.client.post('/api/user/' + encodeURIComponent(username) + '/reset');
     return res.data;
   }
 
   async revokeUserSubscription(username) {
-    var res = await this.client.post('/api/user/' + encodeURIComponent(username) + '/revoke_sub');
+    const res = await this.client.post('/api/user/' + encodeURIComponent(username) + '/revoke_sub');
     return res.data;
   }
 
   async getCoreConfig() {
-    var res = await this.client.get('/api/core/config');
+    const res = await this.client.get('/api/core/config');
     return res.data;
   }
 
   async updateCoreConfig(config) {
-    var res = await this.client.put('/api/core/config', config);
+    const res = await this.client.put('/api/core/config', config);
     return res.data;
   }
 
   async restartXray() {
-    var res = await this.client.post('/api/core/restart');
+    const res = await this.client.post('/api/core/restart');
     return res.data;
   }
 }
@@ -225,6 +240,6 @@ async function createMarzbanService(config) {
 }
 
 module.exports = {
-  MarzbanService: MarzbanService,
-  createMarzbanService: createMarzbanService
+  MarzbanService,
+  createMarzbanService
 };
