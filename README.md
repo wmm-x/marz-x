@@ -1,6 +1,7 @@
 <div align="center">
   <a href="https://github.com/wmm-x/marz-x">
-    <img src="https://raw.githubusercontent.com/wmm-x/marz-x/6349a7f2403c733b169bd2c8e7a834b8458d7045/template/logo.png" alt="Marz-X Logo">
+    <img src="https://raw.githubusercontent.com/wmm-x/marz-x/6349a7f2403c733b169bd2c8e7a834b8458d7045/template/logo.png" 
+      alt="Marz-X Logo">
   </a>
   <br><br>
   <h1>Marz-X</h1>
@@ -32,9 +33,11 @@ This project includes an automatic installation script that sets up Docker, Ngin
 - **Native Marzban Integration:** Seamless real-time sync of users, traffic, and system status via the official API.
 - **Advanced User Management:** Create, edit, suspend, and reset user traffic with precise control over expiry dates.
 - **Subscription Management:** Easily manage plans, data limits, and custom subscription links.
+- **Usage Analysis & Bandwidth Monitoring** View historical server bandwidth usage, including upload/download traffic
 - **Multi-Server Support:** Manage multiple Marzban nodes from a single centralized interface.
 - **Backup and restore feature** Added backup and restore functionality to ensure data safety and easy recovery
 - **Fully Dockerized:** Runs in a secure, isolated environment for easy updates and maintenance.
+
 
 
 ---
@@ -51,14 +54,6 @@ Run the following commands:
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/wmm-x/marz-x/main/install.sh)"
 ```
----
-## Screenshots
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/wmm-x/marz-x/efc8cb99b3192b7173f6d3054f3b05eff899f5d9/template/dashboard.png" alt="Dashboard Home" width="100%">
-</div>
-
----
 
 ## Acknowledgements
 
@@ -67,6 +62,20 @@ Special thanks to **Gozargah** for creating and maintaining Marzban, the core th
 
 Disclaimer: Marz-X is community-driven and is not affiliated with or endorsed by the Marzban core team.
 
+---
+## Screenshots
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/wmm-x/marz-x/96f522445b691d9bb890d6d4ba4dc14e165212a3/screenshots/dark/dashboard-dark.png" width="45%" />
+  <img src="https://raw.githubusercontent.com/wmm-x/marz-x/96f522445b691d9bb890d6d4ba4dc14e165212a3/screenshots/light/db-light.png" width="45%" />
+</p>
+<p align="center">
+   <img src="https://raw.githubusercontent.com/wmm-x/marz-x/96f522445b691d9bb890d6d4ba4dc14e165212a3/screenshots/dark/Analytics-dark.png" width="45%" />
+  <img src="https://raw.githubusercontent.com/wmm-x/marz-x/96f522445b691d9bb890d6d4ba4dc14e165212a3/screenshots/light/Analytics-light.png" width="45%" />
+</p>
+
+
+---
 ## License
 This project is licensed under the MIT License.
 
