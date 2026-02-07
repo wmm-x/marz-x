@@ -191,15 +191,16 @@ router.put('/configs/:id', authMiddleware, async function(req, res) {
         }
 
 
+        // Normalize the endpoint URL and ensure that only the origin is used,
+        // so any user-controlled path/query/fragment is ignored when building the request URL.
+        const parsedEndpoint = new URL(endpointUrl);
+
         // Additional SSRF protection: disallow localhost/private/internal endpoints
         const isPrivate = await isPrivateOrLocalHost(parsedEndpoint.hostname);
         if (isPrivate) {
           return res.status(400).json({ error: 'Endpoint URL host is not allowed' });
         }
 
-        // Normalize the endpoint URL and ensure that only the origin is used,
-        // so any user-controlled path/query/fragment is ignored when building the request URL.
-        const parsedEndpoint = new URL(endpointUrl);
         const finalUrl = parsedEndpoint.origin + '/api/admin/token';
         
         var authRes = await axios. post(finalUrl, params, {
