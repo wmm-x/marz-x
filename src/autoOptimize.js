@@ -2,23 +2,7 @@
 require('dotenv').config();
 const prisma = require('./utils/prisma');
 const { createMarzbanService } = require('./services/marzban.service');
-
-
-function getOptimizationThreshold(totalMemBytes) {
-  const totalGB = totalMemBytes / (1024 * 1024 * 1024);
-
-  if (totalGB > 16) {
-    return 30;
-  } else if (totalGB > 7.7) { 
-    return 15; 
-  } else if (totalGB >= 3.8) {
-    return 20;
-  } else if (totalGB >= 2) {
-    return 40;
-  } else {
-    return 60;
-  }
-}
+const { getOptimizationThreshold } = require('./utils/optimizationThresholds');
 
 async function runAutoOptimization() {
   try {
@@ -44,7 +28,8 @@ async function runAutoOptimization() {
           if (parseFloat(currentUsagePercent) >= limitPercent) {
             console.warn(`[AutoOptimize] RAM High (${currentUsagePercent}% >= ${limitPercent}%). Triggering optimization...`);
             
-            const optimizeResult = await marzban.autoOptimizeServer();
+            // Optimization: Pass already fetched stats to avoid redundant API call
+            const optimizeResult = await marzban.autoOptimizeServer(stats);
             console.log(`[AutoOptimize] Config ${config.id}: Optimization completed.`);
           } else {
             console.log(`[AutoOptimize] Config ${config.id}: Healthy (${currentUsagePercent}%). Limit is ${limitPercent}%. Skipping.`);
