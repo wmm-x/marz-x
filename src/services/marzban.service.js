@@ -2,6 +2,7 @@ const axios = require('axios');
 const http = require('http');
 const https = require('https');
 const prisma = require('../utils/prisma');
+const { getOptimizationThreshold } = require('../utils/optimizationThresholds');
 
 // Shared agents for connection pooling
 const httpAgent = new http.Agent({ keepAlive: true });
@@ -9,9 +10,12 @@ const httpsAgent = new https.Agent({ keepAlive: true });
 
 class MarzbanService {
     // Auto optimization: check RAM and restart xray if needed
-    async autoOptimizeServer() {
+    async autoOptimizeServer(stats = null) {
       try {
-        const stats = await this.getSystemStats();
+        if (!stats) {
+          stats = await this.getSystemStats();
+        }
+
        // console.log('[AutoOptimize] /api/system stats:', JSON.stringify(stats));
         if (
           stats &&
@@ -20,13 +24,16 @@ class MarzbanService {
           stats.mem_total > 0
         ) {
           const usagePercent = (stats.mem_used / stats.mem_total) * 100;
-          console.log(`[AutoOptimize] RAM usage: ${stats.mem_used} / ${stats.mem_total} = ${usagePercent.toFixed(2)}%`);
-          if (usagePercent > 10) {
-            console.log('[AutoOptimize] RAM usage above 10%, restarting xray...');
+          const limitPercent = getOptimizationThreshold(stats.mem_total);
+
+          console.log(`[AutoOptimize] RAM usage: ${stats.mem_used} / ${stats.mem_total} = ${usagePercent.toFixed(2)}% (Limit: ${limitPercent}%)`);
+
+          if (usagePercent > limitPercent) {
+            console.log(`[AutoOptimize] RAM usage above ${limitPercent}%, restarting xray...`);
             await this.restartXray();
-            return { optimized: true, usagePercent };
+            return { optimized: true, usagePercent, limitPercent };
           }
-          return { optimized: false, usagePercent };
+          return { optimized: false, usagePercent, limitPercent };
         } else {
           console.error('[AutoOptimize] RAM stats not available or invalid:', stats);
           throw new Error('RAM stats not available or invalid');
