@@ -9,9 +9,9 @@ const httpsAgent = new https.Agent({ keepAlive: true });
 
 class MarzbanService {
     // Auto optimization: check RAM and restart xray if needed
-    async autoOptimizeServer() {
+    async autoOptimizeServer(existingStats) {
       try {
-        const stats = await this.getSystemStats();
+        const stats = existingStats || await this.getSystemStats();
        // console.log('[AutoOptimize] /api/system stats:', JSON.stringify(stats));
         if (
           stats &&
@@ -140,7 +140,7 @@ class MarzbanService {
   }
 
   async getSystemStats() {
-    var res = await this.client.get('/api/system');
+    const res = await this.client.get('/api/system');
     return res.data;
   }
 
@@ -220,7 +220,7 @@ class MarzbanService {
   }
 
   async restartXray() {
-    var res = await this.client.post('/api/core/restart');
+    const res = await this.client.post('/api/core/restart');
     return res.data;
   }
 }
