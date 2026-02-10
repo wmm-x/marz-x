@@ -54,6 +54,12 @@ class MarzbanService {
   }
 
   createClient() {
+    // Re-validate base URL before creating axios instance (SSRF protection)
+    const urlCheck = validateUrl(this.baseUrl);
+    if (!urlCheck.valid) {
+      throw new Error(`Invalid Marzban Base URL: ${urlCheck.error}`);
+    }
+
     const client = axios.create({
       baseURL: this.baseUrl,
       httpAgent: httpAgent,
@@ -117,11 +123,21 @@ class MarzbanService {
 
       // Construct URL safely for SSRF protection
       const tokenUrl = new URL('/api/admin/token', this.baseUrl).toString();
+
+      // Re-validate token URL before request (SSRF protection)
+      const tokenUrlCheck = validateUrl(tokenUrl);
+      if (!tokenUrlCheck.valid) {
+        throw new Error(`Invalid Token URL: ${tokenUrlCheck.error}`);
+      }
+
       console.log('Sending auth request to:', tokenUrl);
 
       // Use axios directly (not this.client) to avoid circular dependency,
-      // but still limit redirects and use timeout for DNS rebinding protection
+      // but still limit redirects and use timeout for DNS rebinding protection.
+      // Reuse agents for connection pooling.
       const authRes = await axios.post(tokenUrl, params, {
+        httpAgent: httpAgent,
+        httpsAgent: httpsAgent,
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         timeout: 10000,
         maxRedirects: 0  // Prevent redirects to protect against SSRF
