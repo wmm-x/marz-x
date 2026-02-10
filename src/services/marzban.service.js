@@ -115,11 +115,13 @@ class MarzbanService {
       params.append('username', this.config.marzbanUsername);
       params.append('password', this.config.encryptedPassword);
 
-      console.log('Sending auth request to:', this.baseUrl + '/api/admin/token');
+      // Construct URL safely for SSRF protection
+      const tokenUrl = new URL('/api/admin/token', this.baseUrl).toString();
+      console.log('Sending auth request to:', tokenUrl);
 
       // Use axios directly (not this.client) to avoid circular dependency,
       // but still limit redirects and use timeout for DNS rebinding protection
-      const authRes = await axios.post(this.baseUrl + '/api/admin/token', params, {
+      const authRes = await axios.post(tokenUrl, params, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         timeout: 10000,
         maxRedirects: 0  // Prevent redirects to protect against SSRF
