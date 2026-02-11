@@ -9,9 +9,9 @@ const httpsAgent = new https.Agent({ keepAlive: true });
 
 class MarzbanService {
     // Auto optimization: check RAM and restart xray if needed
-    async autoOptimizeServer() {
+    async autoOptimizeServer(providedStats = null) {
       try {
-        const stats = await this.getSystemStats();
+        const stats = providedStats || await this.getSystemStats();
        // console.log('[AutoOptimize] /api/system stats:', JSON.stringify(stats));
         if (
           stats &&
