@@ -7,5 +7,5 @@
 **Action:** Design service methods to accept optional pre-fetched data (dependency injection of data) to avoid redundant calls.
 
 ## 2024-05-23 - SSRF Prevention in Legacy Code
-**Learning:** String concatenation for URLs in Axios requests is flagged as a Security Hotspot. Legacy code modifications trigger full scans.
-**Action:** Use `new URL()` to construct URLs and validate inputs with a dedicated validator (like `validateUrl`) before making requests. Explicitly pass `httpAgent`/`httpsAgent` to individual requests if they bypass the main client instance.
+**Learning:** Legacy code often constructs URLs insecurely. SonarCloud Security Hotspots require explicit validation of URLs immediately before use, even if validated elsewhere.
+**Action:** Use `new URL()` to construct URLs and validiate the result with a security-focused validator (like `validateUrl`) right before passing it to `axios`.

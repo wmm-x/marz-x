@@ -52,6 +52,12 @@ class MarzbanService {
   }
 
   createClient() {
+    // Re-validate base URL for security (defense in depth)
+    const validation = validateUrl(this.baseUrl);
+    if (!validation.valid) {
+      throw new Error(`Invalid Base URL: ${validation.error}`);
+    }
+
     const client = axios.create({
       baseURL: this.baseUrl,
       httpAgent: httpAgent,
@@ -114,7 +120,15 @@ class MarzbanService {
       params.append('password', this.config.encryptedPassword);
 
       // Construct URL safely using new URL() to prevent SSRF
-      const tokenUrl = new URL('/api/admin/token', this.baseUrl).toString();
+      const tokenUrlObj = new URL('/api/admin/token', this.baseUrl);
+      const tokenUrl = tokenUrlObj.toString();
+
+      // Explicitly validate the full URL before request to satisfy security scanners
+      const urlValidation = validateUrl(tokenUrl);
+      if (!urlValidation.valid) {
+        throw new Error(`Invalid token URL: ${urlValidation.error}`);
+      }
+
       console.log('Sending auth request to:', tokenUrl);
 
       // Use axios directly (not this.client) to avoid circular dependency,
