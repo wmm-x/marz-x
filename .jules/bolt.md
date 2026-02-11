@@ -8,4 +8,4 @@
 
 ## 2024-05-23 - SSRF Prevention in Legacy Code
 **Learning:** Legacy code often constructs URLs insecurely. SonarCloud Security Hotspots require explicit validation of URLs immediately before use, even if validated elsewhere.
-**Action:** Use `new URL()` to construct URLs and validiate the result with a security-focused validator (like `validateUrl`) right before passing it to `axios`.
+**Action:** Use `new URL()` to construct URLs and validiate the result with a security-focused validator (like `validateUrl`) right before passing it to `axios`. Explicitly check protocol (http/https) to prevent scheme abuse.

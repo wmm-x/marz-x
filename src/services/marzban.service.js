@@ -129,6 +129,11 @@ class MarzbanService {
         throw new Error(`Invalid token URL: ${urlValidation.error}`);
       }
 
+      // Explicit protocol check right before request (Strict SSRF Protection)
+      if (!tokenUrl.startsWith('http://') && !tokenUrl.startsWith('https://')) {
+        throw new Error('Invalid protocol: Only HTTP and HTTPS are allowed');
+      }
+
       console.log('Sending auth request to:', tokenUrl);
 
       // Use axios directly (not this.client) to avoid circular dependency,
