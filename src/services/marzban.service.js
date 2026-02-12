@@ -109,10 +109,15 @@ class MarzbanService {
       params.append('username', this.config.marzbanUsername);
       params.append('password', this.config.encryptedPassword);
 
-      const tokenUrlString = this.baseUrl + '/api/admin/token';
-      console.log('Sending auth request to:', tokenUrlString);
+      // Construct URL safely using URL API
+      // Base URL is already cleaned in constructor, but let's parse it safely
+      const targetUrl = new URL(this.baseUrl);
+      // Append path safely avoiding double slashes or missing slashes
+      targetUrl.pathname = targetUrl.pathname.replace(/\/$/, '') + '/api/admin/token';
 
-      const validation = validateUrl(tokenUrlString);
+      console.log('Sending auth request to:', targetUrl.toString());
+
+      const validation = validateUrl(targetUrl.toString());
       if (!validation.valid) {
         throw new Error(`Invalid Token URL: ${validation.error}`);
       }

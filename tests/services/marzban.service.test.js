@@ -1,8 +1,20 @@
 const { MarzbanService } = require('../../src/services/marzban.service');
 const assert = require('assert');
-const { describe, it } = require('node:test');
+const { describe, it, beforeEach, afterEach } = require('node:test');
+const axios = require('axios');
 
 describe('MarzbanService Performance Optimization', () => {
+  const originalPost = axios.post;
+
+  beforeEach(() => {
+    // Restore axios.post before each test
+    axios.post = originalPost;
+  });
+
+  afterEach(() => {
+    // Restore axios.post after each test
+    axios.post = originalPost;
+  });
   const mockConfig = {
     endpointUrl: 'https://example.com',
     encryptedAccessToken: 'token',
@@ -52,5 +64,46 @@ describe('MarzbanService Performance Optimization', () => {
     await service.autoOptimizeServer();
 
     assert.strictEqual(getSystemStatsCalled, true, 'getSystemStats SHOULD be called when stats are NOT provided');
+  });
+
+  it('should construct valid URL for refreshToken', async () => {
+    const service = new MarzbanService(mockConfig);
+
+    // Mock axios.post to inspect arguments
+    let capturedUrl = '';
+    axios.post = async (url) => {
+      capturedUrl = url;
+      return { data: { access_token: 'new_token' } };
+    };
+
+    // Need to mock prisma update
+    const prisma = require('../../src/utils/prisma');
+    const originalUpdate = prisma.marzbanConfig.update;
+    prisma.marzbanConfig.update = async () => {};
+
+    try {
+      await service.refreshToken();
+
+      assert.strictEqual(capturedUrl, 'https://example.com/api/admin/token');
+    } finally {
+      prisma.marzbanConfig.update = originalUpdate;
+    }
+  });
+
+  it('should throw error for invalid base URL in refreshToken', async () => {
+     // Create service with invalid URL structure (though constructor cleans it, let's assume it breaks URL parsing somehow)
+     // Actually MarzbanService doesn't validate in constructor strictly for format, just regex replace.
+     // But new URL() will throw if invalid protocol.
+
+     const invalidConfig = { ...mockConfig, endpointUrl: 'invalid-url' };
+     // This might throw in refreshToken when `new URL(invalid-url)` is called.
+
+     const service = new MarzbanService(invalidConfig);
+
+     await assert.rejects(async () => {
+       await service.refreshToken();
+     }, {
+       message: /Invalid URL/
+     });
   });
 });

@@ -24,6 +24,7 @@
     "prisma": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "^25.0.3"
+    "@types/node": "^25.0.3",
+    "node-mocks-http": "^1.17.2"
   }
 }
