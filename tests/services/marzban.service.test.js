@@ -90,20 +90,23 @@ describe('MarzbanService Performance Optimization', () => {
     }
   });
 
-  it('should throw error for invalid base URL in refreshToken', async () => {
-     // Create service with invalid URL structure (though constructor cleans it, let's assume it breaks URL parsing somehow)
-     // Actually MarzbanService doesn't validate in constructor strictly for format, just regex replace.
-     // But new URL() will throw if invalid protocol.
+  it('should throw error immediately in constructor for invalid endpoint URL', async () => {
+     const invalidConfig = { ...mockConfig, endpointUrl: 'http://localhost' };
 
-     const invalidConfig = { ...mockConfig, endpointUrl: 'invalid-url' };
-     // This might throw in refreshToken when `new URL(invalid-url)` is called.
-
-     const service = new MarzbanService(invalidConfig);
-
-     await assert.rejects(async () => {
-       await service.refreshToken();
+     assert.throws(() => {
+       new MarzbanService(invalidConfig);
      }, {
-       message: /Invalid URL/
+       message: /Invalid Marzban URL: Localhost addresses are not allowed/
+     });
+  });
+
+  it('should throw error in constructor for malformed URL', async () => {
+     const invalidConfig = { ...mockConfig, endpointUrl: 'not-a-url' };
+
+     assert.throws(() => {
+       new MarzbanService(invalidConfig);
+     }, {
+       message: /Invalid Marzban URL: Invalid URL format/
      });
   });
 });

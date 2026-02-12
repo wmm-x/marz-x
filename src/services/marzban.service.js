@@ -42,7 +42,13 @@ class MarzbanService {
     }
   constructor(config) {
     this.config = config;
-    this.baseUrl = config.endpointUrl.replace(/\/+$/, '');
+    // Validate the base URL immediately in constructor
+    const validation = validateUrl(config.endpointUrl);
+    if (!validation.valid) {
+      throw new Error(`Invalid Marzban URL: ${validation.error}`);
+    }
+    // Normalize: remove trailing slash
+    this.baseUrl = validation.url.origin + validation.url.pathname.replace(/\/+$/, '');
     this.accessToken = config.encryptedAccessToken;
     this.client = this.createClient();
   }
