@@ -2,6 +2,7 @@ const axios = require('axios');
 const http = require('http');
 const https = require('https');
 const prisma = require('../utils/prisma');
+const { validateUrl } = require('../utils/urlValidator');
 
 // Shared agents for connection pooling
 const httpAgent = new http.Agent({ keepAlive: true });
@@ -104,22 +105,31 @@ class MarzbanService {
       console.log('URL:', this.baseUrl);
       console.log('Username:', this.config.marzbanUsername);
 
-      var params = new URLSearchParams();
+      const params = new URLSearchParams();
       params.append('username', this.config.marzbanUsername);
       params.append('password', this.config.encryptedPassword);
 
-      console.log('Sending auth request to:', this.baseUrl + '/api/admin/token');
+      const tokenUrlString = this.baseUrl + '/api/admin/token';
+      console.log('Sending auth request to:', tokenUrlString);
+
+      const validation = validateUrl(tokenUrlString);
+      if (!validation.valid) {
+        throw new Error(`Invalid Token URL: ${validation.error}`);
+      }
 
       // Use axios directly (not this.client) to avoid circular dependency,
       // but still limit redirects and use timeout for DNS rebinding protection
-      var authRes = await axios.post(this.baseUrl + '/api/admin/token', params, {
+      // Use validated URL string and shared agents for connection pooling
+      const authRes = await axios.post(validation.url.toString(), params, {
+        httpAgent,
+        httpsAgent,
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         timeout: 10000,
         maxRedirects: 0  // Prevent redirects to protect against SSRF
       });
 
       if (authRes.data && authRes.data.access_token) {
-        var newToken = authRes.data.access_token;
+        const newToken = authRes.data.access_token;
 
         await prisma.marzbanConfig.update({
           where: { id: this.config.id },
