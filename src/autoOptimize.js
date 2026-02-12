@@ -44,7 +44,7 @@ async function runAutoOptimization() {
           if (parseFloat(currentUsagePercent) >= limitPercent) {
             console.warn(`[AutoOptimize] RAM High (${currentUsagePercent}% >= ${limitPercent}%). Triggering optimization...`);
             
-            const optimizeResult = await marzban.autoOptimizeServer();
+            const optimizeResult = await marzban.autoOptimizeServer(stats);
             console.log(`[AutoOptimize] Config ${config.id}: Optimization completed.`);
           } else {
             console.log(`[AutoOptimize] Config ${config.id}: Healthy (${currentUsagePercent}%). Limit is ${limitPercent}%. Skipping.`);
