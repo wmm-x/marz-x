@@ -32,3 +32,4 @@ Thumbs.db
 # Misc
 *.log
 .gitignore
+.dockerignore
