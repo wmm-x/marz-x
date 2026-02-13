@@ -13,7 +13,7 @@ DASH_DIR="/root/marzban-dashboard"
 show_header() {
     clear
     echo -e "${BLUE}========================================${NC}"
-    echo -e "${BLUE}      [START] Marz-X Management Menuzzzzzzzzz      ${NC}"
+    echo -e "${BLUE}      Marz-X Management Menu      ${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""
 }
