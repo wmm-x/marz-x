@@ -26,6 +26,7 @@ docker-compose.yml
 xray_config.json
 README.md
 install.sh
+cli-menu.sh
 
 # --- EXCLUDED FROM IGNORE (Allowed) ---
 # We REMOVED 'dist' from this list so your pre-built frontend gets copied!

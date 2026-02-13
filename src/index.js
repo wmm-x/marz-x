@@ -3,6 +3,8 @@ const { startAutoOptimizationScheduler } = require('./autoOptimize');
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
 
 const authRoutes = require('./routes/auth.routes');
 const marzbanRoutes = require('./routes/marzban.routes');
@@ -18,12 +20,33 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); 
+s
+app.use(express.static('public'));
 
 app.use(function(req, res, next) {
   console.log(req.method + ' ' + req. url);
   next();
 });
 
+// Swagger API Documentation
+app.use('/api-docs', swaggerUi.serve);
+app.get('/api-docs', function(req, res, next) {
+  const protocol = req.protocol;
+  const host = req.get('host');
+  const baseUrl = `${protocol}://${host}`;
+  
+  swaggerUi.setup(swaggerSpec, {
+    customCssUrl: `/swagger-theme.css?v=${Date.now()}`,
+    customSiteTitle: 'Marzban Dashboard API Docs',
+    swaggerOptions: {
+      persistAuthorization: true,
+      oauth2RedirectUrl: `${baseUrl}/api-docs/oauth2-redirect.html`,
+    },
+  })(req, res, next);
+});
+
+// API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/marzban', marzbanRoutes);
 app.use('/api/users', userRoutes);

@@ -22,6 +22,142 @@ function getMarzbanPath() {
   return '/var/lib/marzban'; // Default assumption
 }
 
+/**
+ * @swagger
+ * /api/auth/token:
+ *   post:
+ *     summary: OAuth2 token endpoint
+ *     description: Get access token using OAuth2 password flow (for Swagger UI authentication)
+ *     tags: [Authentication]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/x-www-form-urlencoded:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 description: Username or email
+ *               password:
+ *                 type: string
+ *                 description: Password
+ *               grant_type:
+ *                 type: string
+ *                 default: password
+ *     responses:
+ *       200:
+ *         description: Token generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 access_token:
+ *                   type: string
+ *                   description: JWT access token
+ *                 token_type:
+ *                   type: string
+ *                   example: bearer
+ *       400:
+ *         description: Bad request - missing credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *       401:
+ *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ */
+// OAuth2 token endpoint for Swagger UI
+router.post('/token', authRateLimiter, async function(req, res) {
+  try {
+    var username = req.body.username;
+    var password = req.body.password;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'invalid_request', error_description: 'Username and password are required' });
+    }
+
+    var user = await prisma.user.findFirst({ 
+      where: { 
+        OR: [
+          { email: username },
+          { username: username }
+        ]
+      } 
+    });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'invalid_grant', error_description: 'Invalid username or password' });
+    }
+
+    var validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'invalid_grant', error_description: 'Invalid username or password' });
+    }
+
+    var token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '3d' });
+
+    // OAuth2 standard response format
+    res.json({
+      access_token: token,
+      token_type: 'bearer',
+      expires_in: 259200, // 3 days in seconds
+    });
+  } catch (error) {
+    console.error('Token generation error:', error);
+    res.status(500).json({ error: 'server_error', error_description: 'Token generation failed' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: User login
+ *     description: Authenticate user with username/email and password
+ *     tags: [Authentication]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginRequest'
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ *       400:
+ *         description: Bad request - missing credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Login
 router.post('/login', authRateLimiter, async function(req, res) {
   try {
@@ -66,6 +202,38 @@ router.post('/login', authRateLimiter, async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Get current user
+ *     description: Get the authenticated user's profile information
+ *     tags: [Authentication]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     responses:
+ *       200:
+ *         description: User profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Get current user
 router.get('/me', authMiddleware, async function(req, res) {
   try {
@@ -91,6 +259,54 @@ router.get('/me', authMiddleware, async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/auth/change-password:
+ *   post:
+ *     summary: Change password
+ *     description: Change the current user's password
+ *     tags: [Authentication]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - currentPassword
+ *               - newPassword
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 description: Current password
+ *               newPassword:
+ *                 type: string
+ *                 description: New password
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Current password is incorrect
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Change password
 router.post('/change-password', authMiddleware, async function(req, res) {
   try {
@@ -121,6 +337,58 @@ router.post('/change-password', authMiddleware, async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/auth/profile:
+ *   put:
+ *     summary: Update profile
+ *     description: Update user profile (username and/or password)
+ *     tags: [Authentication]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - currentPassword
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 description: New username
+ *               currentPassword:
+ *                 type: string
+ *                 description: Current password (required for verification)
+ *               newPassword:
+ *                 type: string
+ *                 description: New password (optional)
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Bad request - invalid input or current password incorrect
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Update profile
 router.put('/profile', authMiddleware, async function(req, res) {
   try {
@@ -195,6 +463,42 @@ router.put('/profile', authMiddleware, async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/auth/backup/full:
+ *   get:
+ *     summary: Download full backup
+ *     description: Download a complete backup of the system (database and configurations)
+ *     tags: [Authentication]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     responses:
+ *       200:
+ *         description: Backup file download
+ *         content:
+ *           application/zip:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: No backup files found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Failed to generate backup
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Download Full Backup
 router.get('/backup/full', authMiddleware, async function(req, res) {
   try {
@@ -235,6 +539,57 @@ router.get('/backup/full', authMiddleware, async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/auth/backup/restore:
+ *   post:
+ *     summary: Restore backup
+ *     description: Restore system from a backup file
+ *     tags: [Authentication]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - backup
+ *             properties:
+ *               backup:
+ *                 type: string
+ *                 format: binary
+ *                 description: Backup ZIP file
+ *     responses:
+ *       200:
+ *         description: Backup restored successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Bad request - no file uploaded
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Failed to restore backup
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 //Restore Backup (With Automatic Restart of Multiple Containers)
 router.post('/backup/restore', authMiddleware, upload.single('backup'), async function(req, res) {
   try {

@@ -77,6 +77,62 @@ async function isPrivateOrLocalHost(hostname) {
   return addresses.some(isPrivateIp);
 }
 
+/**
+ * @swagger
+ * /api/marzban/connect:
+ *   post:
+ *     summary: Connect to Marzban server
+ *     description: Create a new configuration to connect to a Marzban VPN panel
+ *     tags: [Marzban]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - endpointUrl
+ *               - username
+ *               - password
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Configuration name
+ *               endpointUrl:
+ *                 type: string
+ *                 description: Marzban server URL
+ *               username:
+ *                 type: string
+ *                 description: Marzban admin username
+ *               password:
+ *                 type: string
+ *                 description: Marzban admin password
+ *     responses:
+ *       201:
+ *         description: Successfully connected
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 config:
+ *                   $ref: '#/components/schemas/MarzbanConfig'
+ *       400:
+ *         description: Bad request or connection failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Connect to Marzban (create new config)
 router.post('/connect', authMiddleware, async function(req, res) {
   try {
@@ -130,6 +186,34 @@ router.post('/connect', authMiddleware, async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/marzban/configs:
+ *   get:
+ *     summary: Get all Marzban configurations
+ *     description: Retrieve all Marzban server configurations for the authenticated user
+ *     tags: [Marzban]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     responses:
+ *       200:
+ *         description: List of configurations
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 configs:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/MarzbanConfig'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Get all configs
 router.get('/configs', authMiddleware, async function(req, res) {
   try {
@@ -144,6 +228,70 @@ router.get('/configs', authMiddleware, async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/marzban/configs/{id}:
+ *   put:
+ *     summary: Update Marzban configuration
+ *     description: Update an existing Marzban server configuration
+ *     tags: [Marzban]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Configuration ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Configuration name
+ *               endpointUrl:
+ *                 type: string
+ *                 description: Marzban server URL
+ *               username:
+ *                 type: string
+ *                 description: Marzban admin username
+ *               password:
+ *                 type: string
+ *                 description: Marzban admin password
+ *     responses:
+ *       200:
+ *         description: Configuration updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 config:
+ *                   $ref: '#/components/schemas/MarzbanConfig'
+ *       400:
+ *         description: Bad request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Configuration not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Update config
 router.put('/configs/:id', authMiddleware, async function(req, res) {
   console.log('=== UPDATE CONFIG ===');
@@ -244,6 +392,45 @@ router.put('/configs/:id', authMiddleware, async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/marzban/configs/{id}:
+ *   delete:
+ *     summary: Delete Marzban configuration
+ *     description: Delete a Marzban server configuration
+ *     tags: [Marzban]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Configuration ID
+ *     responses:
+ *       200:
+ *         description: Configuration deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Configuration not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Delete config
 router.delete('/configs/:id', authMiddleware, async function(req, res) {
   try {
@@ -273,6 +460,42 @@ async function getFullConfig(configId, userId) {
   });
 }
 
+/**
+ * @swagger
+ * /api/marzban/configs/{id}/system:
+ *   get:
+ *     summary: Get system statistics
+ *     description: Get system statistics from the Marzban server
+ *     tags: [Marzban]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Configuration ID
+ *     responses:
+ *       200:
+ *         description: System statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Configuration not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Get system stats
 router.get('/configs/:id/system', authMiddleware, async function(req, res) {
   try {
@@ -292,6 +515,44 @@ router.get('/configs/:id/system', authMiddleware, async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/marzban/configs/{id}/inbounds:
+ *   get:
+ *     summary: Get inbounds
+ *     description: Get all inbound configurations from the Marzban server
+ *     tags: [Marzban]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Configuration ID
+ *     responses:
+ *       200:
+ *         description: List of inbounds
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Configuration not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Get inbounds
 router. get('/configs/:id/inbounds', authMiddleware, async function(req, res) {
   try {
@@ -311,6 +572,44 @@ router. get('/configs/:id/inbounds', authMiddleware, async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/marzban/configs/{id}/nodes:
+ *   get:
+ *     summary: Get nodes
+ *     description: Get all nodes from the Marzban server
+ *     tags: [Marzban]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Configuration ID
+ *     responses:
+ *       200:
+ *         description: List of nodes
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Configuration not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Get nodes
 router.get('/configs/:id/nodes', authMiddleware, async function(req, res) {
   try {

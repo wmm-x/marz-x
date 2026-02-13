@@ -1,0 +1,140 @@
+/* Hide Swagger UI top bar */
+.swagger-ui .topbar {
+  display: none;
+}
+
+/* Light green/teal theme */
+.swagger-ui {
+  background-color: #ffffff;
+}
+
+.swagger-ui .info {
+  margin: 50px 0;
+}
+
+.swagger-ui .scheme-container {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  padding: 20px;
+  
+}
+
+.swagger-ui .opblock-tag {
+  border-bottom: none;
+  margin: 0 0 15px 0;
+}
+
+.swagger-ui .opblock {
+  margin: 10px 0;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* POST - Green */
+.swagger-ui .opblock.opblock-post {
+  background: #ffffff;
+  border: 1px solid #49cc90;
+}
+
+.swagger-ui .opblock.opblock-post .opblock-summary-method {
+  background: #49cc90;
+}
+
+.swagger-ui .opblock.opblock-post .opblock-summary {
+  border-color: #49cc90;
+}
+
+/* GET - Blue */
+.swagger-ui .opblock.opblock-get {
+  background: #ffffff;
+  border: 1px solid #61affe;
+}
+
+.swagger-ui .opblock.opblock-get .opblock-summary-method {
+  background: #61affe;
+}
+
+.swagger-ui .opblock.opblock-get .opblock-summary {
+  border-color: #61affe;
+}
+
+/* PUT - Orange */
+.swagger-ui .opblock.opblock-put {
+  background: #ffffff;
+  border: 1px solid #fca130;
+}
+
+.swagger-ui .opblock.opblock-put .opblock-summary-method {
+  background: #fca130;
+}
+
+.swagger-ui .opblock.opblock-put .opblock-summary {
+  border-color: #fca130;
+}
+
+/* DELETE - Red */
+.swagger-ui .opblock.opblock-delete {
+  background: #ffffff;
+  border: 1px solid #f93e3e;
+}
+
+.swagger-ui .opblock.opblock-delete .opblock-summary-method {
+  background: #f93e3e;
+}
+
+.swagger-ui .opblock.opblock-delete .opblock-summary {
+  border-color: #f93e3e;
+}
+
+/* Authorize button */
+.swagger-ui .btn.authorize {
+  background-color: transparent;
+  border-color: #49cc90;
+  color: #49cc90;
+}
+
+.swagger-ui .btn.authorize:hover {
+  background-color: #49cc90;
+  color: #fff;
+}
+
+.swagger-ui .btn.authorize svg {
+  fill: #49cc90;
+}
+
+.swagger-ui .btn.authorize:hover svg {
+  fill: #fff;
+}
+
+/* Headers and sections */
+.swagger-ui .opblock-tag {
+  color: #3b4151;
+  font-size: 24px;
+  font-weight: 400;
+}
+
+.swagger-ui .opblock-summary-description {
+  color: #3b4151;
+  font-weight: 400;
+}
+
+/* Response/Request sections */
+.swagger-ui .opblock-section-header {
+  background: #fafafa;
+}
+
+.swagger-ui .responses-inner {
+  background: #fff;
+}
+
+/* Models */
+.swagger-ui section.models {
+  border: none;
+  margin-top: 50px;
+}
+
+.swagger-ui .model-box {
+  background: #fff;
+  border-radius: 4px;
+}
