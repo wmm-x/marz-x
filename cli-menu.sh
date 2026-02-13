@@ -11,7 +11,7 @@ CLI_UPDATE_URL="https://raw.githubusercontent.com/wmm-x/marz-x/main/cli-menu.sh"
 show_header() {
     clear
     echo -e "${BLUE}========================================${NC}"
-    echo -e "${BLUE}      MARZ-X Management Menu11      ${NC}"
+    echo -e "${BLUE}      MARZ-X Management Menu      ${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""
 }
