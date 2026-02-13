@@ -14,7 +14,7 @@ show_header() {
     clear
     echo -e "${BLUE}========================================${NC}"
 <<<<<<< HEAD
-    echo -e "${BLUE}       Marz-X Management Menu  ${NC}"
+    echo -e "${BLUE}      Marz-X Management Menu  ${NC}"
 =======
     echo -e "${BLUE}      Marz-X Management Menu      ${NC}"
 >>>>>>> c66f99b5284748547ae3190257e0204aaff95a92
