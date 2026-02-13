@@ -13,11 +13,7 @@ DASH_DIR="/root/marzban-dashboard"
 show_header() {
     clear
     echo -e "${BLUE}========================================${NC}"
-<<<<<<< HEAD
-    echo -e "${BLUE}       Marz-X Management Menu  ${NC}"
-=======
-    echo -e "${BLUE}      Marz-X Management Menu      ${NC}"
->>>>>>> c66f99b5284748547ae3190257e0204aaff95a92
+    echo -e "${BLUE}      [START] Marz-X Management Menu      ${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""
 }
@@ -37,7 +33,7 @@ fi
 # Main Menu Loop
 while true; do
     show_header
-    echo "1) Update Panel & CLI"
+    echo "1) Update Panel"
     echo "2) Start Services"
     echo "3) Stop Services"
     echo "4) View Logs"
@@ -49,35 +45,9 @@ while true; do
     read -p "Select an option [1-8]: " OPTION
 
     case $OPTION in
-        1) # UPDATE PANEL & CLI
+        1) # UPDATE
             echo ""
-            echo -e "${YELLOW}Updating Marzban Dashboard & CLI Menu...${NC}"
-            
-            # First, update CLI menu from GitHub
-            echo -e "${BLUE}[1/2] Checking for CLI menu updates...${NC}"
-            CLI_MENU_URL="https://raw.githubusercontent.com/wmm-x/marz-x/main/cli-menu.sh"
-            CLI_TEMP=$(mktemp)
-            
-            if curl -fsSL "$CLI_MENU_URL" -o "$CLI_TEMP" 2>/dev/null && [ -s "$CLI_TEMP" ]; then
-                if ! cmp -s "$CLI_TEMP" "/usr/local/bin/marz-x" 2>/dev/null; then
-                    echo -e "${GREEN}New CLI menu version found! Updating...${NC}"
-                    cp /usr/local/bin/marz-x /usr/local/bin/marz-x.backup 2>/dev/null || true
-                    install -m 755 "$CLI_TEMP" /usr/local/bin/marz-x
-                    echo -e "${GREEN}[OK] CLI menu updated successfully!${NC}"
-                    CLI_UPDATED=true
-                else
-                    echo -e "${GREEN}[OK] CLI menu is already up to date.${NC}"
-                    CLI_UPDATED=false
-                fi
-            else
-                echo -e "${YELLOW}[SKIP] Could not fetch CLI menu updates.${NC}"
-                CLI_UPDATED=false
-            fi
-            rm -f "$CLI_TEMP"
-            
-            # Then, update the dashboard
-            echo ""
-            echo -e "${BLUE}[2/2] Updating Marzban Dashboard...${NC}"
+            echo -e "${YELLOW}Updating Marzban Dashboard...${NC}"
             if [ -d "$DASH_DIR" ]; then
                 cd $DASH_DIR
                 
@@ -133,16 +103,6 @@ while true; do
                 echo -e "${YELLOW}Cleaning up old images and unused volumes...${NC}"
                 docker image prune -f 2>/dev/null || true
                 docker volume prune -f 2>/dev/null || true
-                
-                echo ""
-                echo -e "${GREEN}[OK] Dashboard and CLI menu update completed!${NC}"
-                
-                # If CLI was updated, restart menu to apply changes
-                if [ "$CLI_UPDATED" = true ]; then
-                    echo -e "${BLUE}[INFO] Restarting menu to apply CLI updates...${NC}"
-                    sleep 2
-                    exec marz-x
-                fi
             else
                 echo -e "${RED}Dashboard directory not found!${NC}"
             fi
@@ -512,8 +472,4 @@ while true; do
             sleep 1
             ;;
     esac
-<<<<<<< HEAD
 done
-=======
-done
->>>>>>> c66f99b5284748547ae3190257e0204aaff95a92
