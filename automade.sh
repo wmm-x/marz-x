@@ -14,25 +14,29 @@ fi
 # ==============================================================================
 #                      FIXED DEPENDENCY & DOCKER INSTALL
 # ==============================================================================
-# 1. Stop interactive prompts (Fixed 'debconf: unable to initialize frontend' error)
 export DEBIAN_FRONTEND=noninteractive
 
 echo "[PACK] Updating system and installing dependencies..."
-# -qq suppresses output to keep logs clean
 apt-get update -qq -y 
 
-# 2. Install Docker + Dependencies via APT (Fixed 'curl: Could not resolve host')
-#    Installing docker.io directly is more stable than curling a script during updates
-apt-get install -qq -y curl ca-certificates openssl jq ufw docker.io
+# 1. Install Docker + Docker Compose Plugin explicitly
+#    'docker-compose-plugin' is required for the 'docker compose' command
+apt-get install -qq -y curl ca-certificates openssl jq ufw docker.io docker-compose-plugin
 
-# 3. Enable and Start Docker Service
+# 2. Fallback: If the plugin package fails (common on some VPS), install standalone
+if ! docker compose version > /dev/null 2>&1; then
+    echo "[FIX] 'docker compose' not found. Installing standalone binary..."
+    mkdir -p /usr/local/lib/docker/cli-plugins
+    curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+fi
+
+# 3. Enable and Start Docker
 systemctl start docker
 systemctl enable docker
 
-# 4. Wait for network/DNS to stabilize after install restarts
-echo "[WAIT] Waiting 5s for network services to stabilize..."
+echo "[WAIT] Waiting 5s for Docker to stabilize..."
 sleep 5
-
 if ! command -v docker &> /dev/null; then
     echo "[X] Docker installation failed."
     exit 1
