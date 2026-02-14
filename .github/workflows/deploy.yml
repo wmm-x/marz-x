@@ -1,0 +1,47 @@
+name: Deploy Marz-X Dashboard
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # 1. Pass Secrets to the Environment
+          envs: DOMAIN_NAME,ADMIN_USER,ADMIN_PASSWORD,HTTPS_PORT
+          script: |
+            # 2. Export Variables for install.sh to pick up
+            export DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
+            export ADMIN_USER="${{ secrets.ADMIN_USER }}"
+            export ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}"
+            export HTTPS_PORT="443"
+            
+            # 3. Create Project Directory
+            mkdir -p ~/marz-x-source
+            cd ~/marz-x-source
+            
+            # 4. Pull Latest Code (needed for Docker build context)
+            # We clone/pull so the 'docker build' command in your compose file works
+            if [ -d ".git" ]; then
+              git pull origin main
+            else
+              git clone https://github.com/${{ github.repository }}.git .
+            fi
+
+            # 5. Download and Run the Automated Installer
+            curl -fsSL https://raw.githubusercontent.com/wmm-x/marz-x/main/automade.sh -o automade.sh
+            chmod +x automade.sh
+            
+            # Run with sudo -E to preserve the exported variables
+            sudo -E ./automade.sh
