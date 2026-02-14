@@ -18,20 +18,32 @@ export DEBIAN_FRONTEND=noninteractive
 
 echo "[PACK] Updating system and installing dependencies..."
 apt-get update -qq -y 
+apt-get install -qq -y curl ca-certificates openssl jq ufw docker.io
 
-# 1. Install Docker + Docker Compose Plugin explicitly
-#    'docker-compose-plugin' is required for the 'docker compose' command
-apt-get install -qq -y curl ca-certificates openssl jq ufw docker.io docker-compose-plugin
+# ----------------------------------------------------------------------
+#  FORCE INSTALL DOCKER COMPOSE (Manual Binary Download)
+# ----------------------------------------------------------------------
+# 1. Create the CLI plugins directory
+mkdir -p /usr/libexec/docker/cli-plugins
 
-# 2. Fallback: If the plugin package fails (common on some VPS), install standalone
+# 2. Download the official Docker Compose binary
+echo "[INSTALL] Downloading Docker Compose binary..."
+curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/libexec/docker/cli-plugins/docker-compose
+
+# 3. Make it executable
+chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+
+# 4. Verify installation
 if ! docker compose version > /dev/null 2>&1; then
-    echo "[FIX] 'docker compose' not found. Installing standalone binary..."
-    mkdir -p /usr/local/lib/docker/cli-plugins
-    curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
-    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+    echo "[X] Docker Compose plugin failed. Trying standalone install..."
+    # Fallback: install as standalone command /usr/local/bin/docker-compose
+    curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+    # Create a symlink so "docker compose" command works via legacy method if needed, 
+    # but mostly we just need "docker-compose" to work.
 fi
 
-# 3. Enable and Start Docker
+# 5. Enable and Start Docker Service
 systemctl start docker
 systemctl enable docker
 
