@@ -3,7 +3,7 @@
 # Stop script on error
 set -e
 
-DOCKER_IMAGE="malindamalshan/marzban-dashboard:latest"
+DOCKER_IMAGE="malindamalshan/marzban-dashboard:dev"
 
 # Root Check
 if [ "$EUID" -ne 0 ]; then
