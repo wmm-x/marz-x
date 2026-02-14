@@ -734,7 +734,6 @@ EOF
 
 chmod +x /usr/local/bin/marz-x
 echo "[OK] 'marz-x' menu installed successfully!"
-
 echo ""
 echo "------------------------------------------------------------------"
 echo "✅ MARZ-X DASHBOARD SETUP FINISHED!"
