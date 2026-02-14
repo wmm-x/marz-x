@@ -4,11 +4,11 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Marzban Dashboard API',
+      title: 'Marz-X Dashboard API',
       version: '1.0.0',
-      description: 'API documentation for Marzban Dashboard - A management interface for Marzban VPN panel',
+      description: 'API documentation for Marz-X Dashboard - A management interface for Marzban VPN panel',
       contact: {
-        name: 'Marzban Dashboard',
+        name: 'Marz-X Dashboard',
       },
     },
     tags: [
