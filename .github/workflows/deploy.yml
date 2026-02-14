@@ -1,4 +1,4 @@
-name: Deploy Marz-X Dashboard
+name: Build & Deploy Dev
 
 on:
   push:
@@ -6,61 +6,75 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  # ==============================================================================
+  # JOB 1: BUILD & PUSH DOCKER IMAGE (:dev)
+  # ==============================================================================
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Deploy to EC2
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # Pushing with the 'dev' tag as requested
+          tags: malindamalshan/marzban-dashboard:dev
+
+  # ==============================================================================
+  # JOB 2: DEPLOY TO EC2 (Runs after Build)
+  # ==============================================================================
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH and Deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # 1. Pass Secrets to the Environment
-          envs: DOMAIN_NAME,ADMIN_USER,ADMIN_PASSWORD,HTTPS_PORT
+          # Pass Secrets & Variables to the Script Environment
+          envs: DOMAIN_NAME,HTTPS_PORT,OPTIMIZE_INTERVAL,ADMIN_USER,ADMIN_PASSWORD
           script: |
+            # 1. Export Variables (From GitHub Vars - Visible)
             export DOMAIN_NAME="${{ vars.DOMAIN_NAME }}"
             export HTTPS_PORT="${{ vars.HTTPS_PORT }}"
             export OPTIMIZE_INTERVAL="${{ vars.OPTIMIZE_INTERVAL }}"
+            
+            # 2. Export Secrets (From GitHub Secrets - Hidden)
             export ADMIN_USER="${{ secrets.ADMIN_USER }}"
             export ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}"
-            export HTTPS_PORT="${{ vars.HTTPS_PORT }}"
-            
-            # 1. Prepare Directory
+
+            # 3. Prepare Server Directory
             mkdir -p ~/marz-x-source
             cd ~/marz-x-source
             
-            # 2. Force Git to match the Repository (Fixes "Local changes" error)
-            # If repo doesn't exist, clone it.
+            # 4. Force Update Code (Git Reset Hard)
+            # This ensures the server code exactly matches GitHub, avoiding conflicts
             if [ ! -d ".git" ]; then
               git clone https://github.com/wmm-x/marz-x.git .
             fi
-            
-            # Fetch latest and HARD RESET to discard any local files/changes
             git fetch origin main
             git reset --hard origin/main
 
-            # 3. Fix "Could not get lock" (Fixes APT lock error)
-            # Stop background update services that hog apt
-            echo "[FIX] Stopping background update services..."
-            sudo systemctl stop unattended-upgrades 2>/dev/null || true
-            sudo systemctl stop apt-daily.service 2>/dev/null || true
-            sudo systemctl stop apt-daily-upgrade.service 2>/dev/null || true
-            
-            # Kill any stuck apt processes
+            # 5. Robustness: Clear APT locks (just in case auto-updates are running)
             sudo killall apt apt-get 2>/dev/null || true
+            sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock
             
-            # Remove lock files if they still exist
-            sudo rm -f /var/lib/dpkg/lock-frontend
-            sudo rm -f /var/lib/dpkg/lock
-            sudo rm -f /var/lib/apt/lists/lock
-            
-            # Configure dpkg just in case it was interrupted
-            sudo dpkg --configure -a
-
-            # 4. Run the Installer
-            # We use the script directly from the repo (no need to curl it again)
+            # 6. Run the Installer
+            # automade.sh will generate the docker-compose.yml using the image tag defined inside it
             chmod +x automade.sh
             sudo -E ./automade.sh
+
+            # 7. Cleanup (Optional)
+            # Removes old images to save space on EC2
+            docker image prune -f
