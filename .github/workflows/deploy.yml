@@ -6,9 +6,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ==============================================================================
-  # JOB 1: BUILD & PUSH DOCKER IMAGE (:dev)
-  # ==============================================================================
   build:
     runs-on: ubuntu-latest
     steps:
@@ -26,12 +23,9 @@ jobs:
         with:
           context: .
           push: true
-          # Pushing with the 'dev' tag as requested
           tags: malindamalshan/marzban-dashboard:dev
 
-  # ==============================================================================
-  # JOB 2: DEPLOY TO EC2 (Runs after Build)
-  # ==============================================================================
+#deploy to EC2
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -42,7 +36,6 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # Pass Secrets & Variables to the Script Environment
           envs: DOMAIN_NAME,HTTPS_PORT,OPTIMIZE_INTERVAL,ADMIN_USER,ADMIN_PASSWORD
           script: |
             # 1. Export Variables (From GitHub Vars - Visible)
@@ -58,8 +51,6 @@ jobs:
             mkdir -p ~/marz-x-source
             cd ~/marz-x-source
             
-            # 4. Force Update Code (Git Reset Hard)
-            # This ensures the server code exactly matches GitHub, avoiding conflicts
             if [ ! -d ".git" ]; then
               git clone https://github.com/wmm-x/marz-x.git .
             fi
@@ -70,11 +61,8 @@ jobs:
             sudo killall apt apt-get 2>/dev/null || true
             sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock
             
-            # 6. Run the Installer
-            # automade.sh will generate the docker-compose.yml using the image tag defined inside it
             chmod +x automade.sh
-            sudo -E ./automade.sh
+            sudo -E bash ./automade.sh
 
-            # 7. Cleanup (Optional)
             # Removes old images to save space on EC2
             sudo docker image prune -f
