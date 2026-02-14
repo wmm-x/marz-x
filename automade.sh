@@ -1,6 +1,4 @@
-#!/bin/bash
 
-# Stop script on error
 set -e
 
 DOCKER_IMAGE="malindamalshan/marzban-dashboard:dev"
@@ -11,39 +9,30 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# ==============================================================================
-#                      FIXED DEPENDENCY & DOCKER INSTALL
-# ==============================================================================
 export DEBIAN_FRONTEND=noninteractive
 
 echo "[PACK] Updating system and installing dependencies..."
 apt-get update -qq -y 
 apt-get install -qq -y curl ca-certificates openssl jq ufw docker.io
 
-# ----------------------------------------------------------------------
-#  FORCE INSTALL DOCKER COMPOSE (Manual Binary Download)
-# ----------------------------------------------------------------------
 # 1. Create the CLI plugins directory
 mkdir -p /usr/libexec/docker/cli-plugins
 
-# 2. Download the official Docker Compose binary
 echo "[INSTALL] Downloading Docker Compose binary..."
 curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/libexec/docker/cli-plugins/docker-compose
 
-# 3. Make it executable
 chmod +x /usr/libexec/docker/cli-plugins/docker-compose
 
-# 4. Verify installation
+
 if ! docker compose version > /dev/null 2>&1; then
     echo "[X] Docker Compose plugin failed. Trying standalone install..."
-    # Fallback: install as standalone command /usr/local/bin/docker-compose
+    
     curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
-    # Create a symlink so "docker compose" command works via legacy method if needed, 
-    # but mostly we just need "docker-compose" to work.
+    
 fi
 
-# 5. Enable and Start Docker Service
+
 systemctl start docker
 systemctl enable docker
 
@@ -55,14 +44,11 @@ if ! command -v docker &> /dev/null; then
 else
     echo "[OK] Docker is installed and ready."
 fi
-# ==============================================================================
-# ==============================================================================
-#                        PART 1: DASHBOARD CONFIGURATION (AUTOMATED)
-# ==============================================================================
+
 echo ""
 echo "--- [CONFIG] Dashboard Configuration ---"
 
-# 1. Domain Name (Check Env Var first, else Prompt)
+
 if [ -z "$DOMAIN_NAME" ]; then
     read -p "Enter your Domain (e.g., panel.example.com): " DOMAIN_NAME
 fi
@@ -72,17 +58,14 @@ if [ -z "$DOMAIN_NAME" ]; then
   exit 1
 fi
 
-# 2. Port (Default 6104)
 HTTPS_PORT="${HTTPS_PORT:-6104}"
 if [ -z "$HTTPS_PORT" ] && [ -z "$CI" ]; then
     read -p "Enter Dashboard Public Port [6104]: " INPUT_PORT
     HTTPS_PORT="${INPUT_PORT:-6104}"
 fi
 
-# 3. Optimize Interval
 OPTIMIZE_INTERVAL="${OPTIMIZE_INTERVAL:-10}"
 
-# 4. Admin Credentials
 if [ -z "$ADMIN_USER" ]; then
     echo ""
     echo "[SECURE] Setup Dashboard Admin Credentials"
@@ -98,21 +81,17 @@ fi
 echo "[INFO] Configuring for Domain: $DOMAIN_NAME"
 echo "[INFO] Dashboard Port: $HTTPS_PORT"
 
-# Generate Secure Keys
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 MARZBAN_ADMIN_PASS=$(openssl rand -base64 12)
 
-# ==============================================================================
-#                        PART 2: SSL GENERATION
-# ==============================================================================
 INSTALL_DIR="/root/marzban-dashboard"
 mkdir -p $INSTALL_DIR/data
 mkdir -p $INSTALL_DIR/certs
 cd $INSTALL_DIR
 
 echo ""
-# Check if certificate already exists in system path
+
 if [ -d "/etc/letsencrypt/live/$DOMAIN_NAME" ]; then
     echo "[SSL] Certificate already exists for $DOMAIN_NAME in /etc/letsencrypt/live/"
     echo "[SSL] Copying existing certificate to dashboard directory..."
@@ -150,13 +129,9 @@ else
     echo "[OK] SSL Certificate obtained successfully."
 fi
 
-# ==============================================================================
-#                        PART 3: DASHBOARD INSTALLATION
-# ==============================================================================
 echo ""
 echo "[FILE] Creating Dashboard configuration files..."
 
-# 1. .env
 cat > .env <<EOF
 NODE_ENV=production
 PORT=5000
@@ -172,7 +147,7 @@ MARZBAN_ADMIN="MarzbanAdminx"
 MARZBAN_ADMIN_PASS="${MARZBAN_ADMIN_PASS}"
 EOF
 
-# 2. nginx.conf (With Swagger Routes preserved)
+
 cat > nginx.conf <<EOF
 events { worker_connections 1024; }
 http {
@@ -234,7 +209,6 @@ http {
 }
 EOF
 
-# 3. docker-compose.yml
 cat > docker-compose.yml <<EOF
 version: '3.8'
 services:
@@ -257,9 +231,6 @@ docker compose pull
 docker compose up -d
 echo "[OK] Dashboard is running at https://$DOMAIN_NAME:$HTTPS_PORT"
 
-# ==============================================================================
-#                        PART 4: CLI TOOL SETUP (marz-x)
-# ==============================================================================
 echo ""
 echo "[INSTALL] Installing 'marz-x' CLI tool..."
 
