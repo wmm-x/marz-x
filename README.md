@@ -124,7 +124,7 @@ This project is licensed under the **MIT License**. See [LICENSE](LICENSE) file 
 
 <div align="center">
   <br>
-  <sub>🔗 <a href="https://github.com/wmm-x">Follow on GitHub</a> • 💬 <a href="https://github.com/wmm-x/marz-x/discussions">Join Discussions</a></sub>
+  <sub>🔗 <a href="https://github.com/wmm-x">Follow on GitHub</a> </sub>
   <br><br>
   <sub>Developed with ❤️ by <a href="https://github.com/wmm-x">wmm-x</a></sub>
   <br><br>
