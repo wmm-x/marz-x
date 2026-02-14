@@ -77,4 +77,4 @@ jobs:
 
             # 7. Cleanup (Optional)
             # Removes old images to save space on EC2
-            docker image prune -f
+            sudo docker image prune -f
