@@ -21,27 +21,44 @@ jobs:
           # 1. Pass Secrets to the Environment
           envs: DOMAIN_NAME,ADMIN_USER,ADMIN_PASSWORD,HTTPS_PORT
           script: |
-            # 2. Export Variables for install.sh to pick up
             export DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
             export ADMIN_USER="${{ secrets.ADMIN_USER }}"
             export ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}"
             export HTTPS_PORT="443"
-            
-            # 3. Create Project Directory
+
+            # 1. Prepare Directory
             mkdir -p ~/marz-x-source
             cd ~/marz-x-source
             
-            # 4. Pull Latest Code (needed for Docker build context)
-            # We clone/pull so the 'docker build' command in your compose file works
-            if [ -d ".git" ]; then
-              git pull origin main
-            else
-              git clone https://github.com/${{ github.repository }}.git .
+            # 2. Force Git to match the Repository (Fixes "Local changes" error)
+            # If repo doesn't exist, clone it.
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/wmm-x/marz-x.git .
             fi
-
-            # 5. Download and Run the Automated Installer
-            curl -fsSL https://raw.githubusercontent.com/wmm-x/marz-x/main/automade.sh -o automade.sh
-            chmod +x automade.sh
             
-            # Run with sudo -E to preserve the exported variables
+            # Fetch latest and HARD RESET to discard any local files/changes
+            git fetch origin main
+            git reset --hard origin/main
+
+            # 3. Fix "Could not get lock" (Fixes APT lock error)
+            # Stop background update services that hog apt
+            echo "[FIX] Stopping background update services..."
+            sudo systemctl stop unattended-upgrades 2>/dev/null || true
+            sudo systemctl stop apt-daily.service 2>/dev/null || true
+            sudo systemctl stop apt-daily-upgrade.service 2>/dev/null || true
+            
+            # Kill any stuck apt processes
+            sudo killall apt apt-get 2>/dev/null || true
+            
+            # Remove lock files if they still exist
+            sudo rm -f /var/lib/dpkg/lock-frontend
+            sudo rm -f /var/lib/dpkg/lock
+            sudo rm -f /var/lib/apt/lists/lock
+            
+            # Configure dpkg just in case it was interrupted
+            sudo dpkg --configure -a
+
+            # 4. Run the Installer
+            # We use the script directly from the repo (no need to curl it again)
+            chmod +x automade.sh
             sudo -E ./automade.sh
