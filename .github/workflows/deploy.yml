@@ -21,7 +21,9 @@ jobs:
           # 1. Pass Secrets to the Environment
           envs: DOMAIN_NAME,ADMIN_USER,ADMIN_PASSWORD,HTTPS_PORT
           script: |
-            export DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
+            export DOMAIN_NAME="${{ vars.DOMAIN_NAME }}"
+            export HTTPS_PORT="${{ vars.HTTPS_PORT }}"
+            export OPTIMIZE_INTERVAL="${{ vars.OPTIMIZE_INTERVAL }}"
             export ADMIN_USER="${{ secrets.ADMIN_USER }}"
             export ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}"
             export HTTPS_PORT="443"
