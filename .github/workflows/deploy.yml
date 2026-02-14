@@ -26,8 +26,8 @@ jobs:
             export OPTIMIZE_INTERVAL="${{ vars.OPTIMIZE_INTERVAL }}"
             export ADMIN_USER="${{ secrets.ADMIN_USER }}"
             export ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}"
-            export HTTPS_PORT="443"
-
+            export HTTPS_PORT="${{ vars.HTTPS_PORT }}"
+            
             # 1. Prepare Directory
             mkdir -p ~/marz-x-source
             cd ~/marz-x-source
