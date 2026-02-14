@@ -11,20 +11,35 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# Install Dependencies
+# ==============================================================================
+#                      FIXED DEPENDENCY & DOCKER INSTALL
+# ==============================================================================
+# 1. Stop interactive prompts (Fixed 'debconf: unable to initialize frontend' error)
+export DEBIAN_FRONTEND=noninteractive
+
 echo "[PACK] Updating system and installing dependencies..."
-apt update -y 
-apt install -y curl ca-certificates openssl jq ufw 
+# -qq suppresses output to keep logs clean
+apt-get update -qq -y 
 
-# Check/Install Docker
+# 2. Install Docker + Dependencies via APT (Fixed 'curl: Could not resolve host')
+#    Installing docker.io directly is more stable than curling a script during updates
+apt-get install -qq -y curl ca-certificates openssl jq ufw docker.io
+
+# 3. Enable and Start Docker Service
+systemctl start docker
+systemctl enable docker
+
+# 4. Wait for network/DNS to stabilize after install restarts
+echo "[WAIT] Waiting 5s for network services to stabilize..."
+sleep 5
+
 if ! command -v docker &> /dev/null; then
-  echo "[DOCKER] Docker not found. Installing..."
-    curl -fsSL https://get.docker.com | sh
-    echo "[OK] Docker installed."
+    echo "[X] Docker installation failed."
+    exit 1
 else
-    echo "[OK] Docker is already installed."
+    echo "[OK] Docker is installed and ready."
 fi
-
+# ==============================================================================
 # ==============================================================================
 #                        PART 1: DASHBOARD CONFIGURATION (AUTOMATED)
 # ==============================================================================
