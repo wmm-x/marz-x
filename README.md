@@ -20,9 +20,13 @@
 
 ## 📋 Overview
 
-**Marz-X** is a comprehensive, professional-grade dashboard designed to revolutionize **Marzban** management. It delivers an elegant, intuitive web interface for seamlessly managing users, subscriptions, traffic, and configuring VPN servers with automatic SSL certification.
+**Marz-X** is an independent, professional-grade management dashboard designed to interact with **Marzban** via its official public API.
 
-Featuring an automated installation script that deploys Docker, Nginx, Let's Encrypt SSL, and the complete Marzban ecosystem in minutes, Marz-X eliminates complex configuration hassles.
+It provides an elegant and intuitive web interface for managing users, subscriptions, traffic monitoring, and VPN server configuration — all without modifying the Marzban core.
+
+Marz-X simplifies deployment by automating Docker, Nginx, SSL certificates, and Marzban setup in minutes.
+
+> ⚠️ Marz-X does **not** modify or relicense Marzban. Marzban remains a separate project licensed under AGPL-3.0.
 
 ---
 
