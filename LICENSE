@@ -27,7 +27,7 @@ SOFTWARE.
 This project may include or depend on third-party software components, each with
 their own license terms:
 
-- **Marzban VPN Panel**: AGPL-3.0 License
+- **Marzban VPN API**: AGPL-3.0 License
 - **Docker & Docker Compose**: Apache License 2.0
 - **NGINX**: 2-clause BSD License
 - **Let's Encrypt Certbot**: Apache License 2.0
