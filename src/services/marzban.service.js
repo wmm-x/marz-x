@@ -1,5 +1,11 @@
 const axios = require('axios');
+const http = require('http');
+const https = require('https');
 const prisma = require('../utils/prisma');
+
+// Shared agents for connection pooling
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
 
 class MarzbanService {
     // Auto optimization: check RAM and restart xray if needed
@@ -38,9 +44,10 @@ class MarzbanService {
   }
 
   createClient() {
-    var self = this;
-    var client = axios.create({
+    const client = axios.create({
       baseURL: this.baseUrl,
+      httpAgent: httpAgent,
+      httpsAgent: httpsAgent,
       headers: {
         'Authorization': 'Bearer ' + this.accessToken,
         'Content-Type': 'application/json'
@@ -51,11 +58,9 @@ class MarzbanService {
 
     // Add response interceptor for auto re-auth
     client.interceptors.response.use(
-      function (response) {
-        return response;
-      },
-      async function (error) {
-        var originalRequest = error.config;
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config;
 
         // If 401 and not already retried
         if (error.response && error.response.status === 401 && !originalRequest._retry) {
@@ -65,16 +70,16 @@ class MarzbanService {
 
           try {
             // Re-authenticate
-            var newToken = await self.refreshToken();
+            const newToken = await this.refreshToken();
 
             if (newToken) {
               // Update the client header
-              self.accessToken = newToken;
-              self.client.defaults.headers['Authorization'] = 'Bearer ' + newToken;
+              this.accessToken = newToken;
+              this.client.defaults.headers['Authorization'] = 'Bearer ' + newToken;
               originalRequest.headers['Authorization'] = 'Bearer ' + newToken;
 
               // Retry the original request
-              return self.client(originalRequest);
+              return this.client(originalRequest);
             }
           } catch (refreshError) {
             console.error('Failed to refresh token:', refreshError.message);

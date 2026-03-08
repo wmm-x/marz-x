@@ -6,6 +6,7 @@ const authMiddleware = require('../middleware/auth.middleware');
 const router = express.Router();
 
 router.use(authMiddleware);
+
 // Auto server optimization: check RAM and restart xray if needed
 router.post('/:configId/auto-optimize', async function(req, res) {
   try {
@@ -33,6 +34,73 @@ router.get('/test', function(req, res) {
   res.json({ message: 'User routes working' });
 });
 
+/**
+ * @swagger
+ * /api/users/{configId}:
+ *   get:
+ *     summary: Get all VPN users
+ *     description: Retrieve all VPN users from the Marzban panel
+ *     tags: [Users]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     parameters:
+ *       - in: path
+ *         name: configId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Marzban configuration ID
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Pagination offset
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Number of users to retrieve
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [active, disabled, limited, expired]
+ *         description: Filter by user status
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search users by username
+ *     responses:
+ *       200:
+ *         description: List of users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 users:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/MarzbanUser'
+ *                 total:
+ *                   type: integer
+ *                   description: Total number of users
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Failed to get users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Get all users
 router.get('/:configId', async function(req, res) {
   try {
@@ -58,6 +126,54 @@ router.get('/:configId', async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/{configId}:
+ *   post:
+ *     summary: Create VPN user
+ *     description: Create a new VPN user in the Marzban panel
+ *     tags: [Users]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     parameters:
+ *       - in: path
+ *         name: configId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Marzban configuration ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateMarzbanUserRequest'
+ *     responses:
+ *       201:
+ *         description: User created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MarzbanUser'
+ *       400:
+ *         description: Bad request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Failed to create user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Create user
 router.post('/:configId', async function(req, res) {
   try {
@@ -75,6 +191,48 @@ router.post('/:configId', async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/{configId}/{username}/reset:
+ *   post:
+ *     summary: Reset user traffic
+ *     description: Reset the traffic usage for a specific VPN user
+ *     tags: [Users]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     parameters:
+ *       - in: path
+ *         name: configId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Marzban configuration ID
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: VPN username
+ *     responses:
+ *       200:
+ *         description: Traffic reset successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MarzbanUser'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Failed to reset traffic
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Reset traffic
 router.post('/:configId/:username/reset', async function(req, res) {
   try {
@@ -89,6 +247,48 @@ router.post('/:configId/:username/reset', async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/{configId}/{username}/revoke:
+ *   post:
+ *     summary: Revoke user subscription
+ *     description: Revoke the subscription link for a specific VPN user
+ *     tags: [Users]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     parameters:
+ *       - in: path
+ *         name: configId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Marzban configuration ID
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: VPN username
+ *     responses:
+ *       200:
+ *         description: Subscription revoked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MarzbanUser'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Failed to revoke subscription
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Revoke subscription
 router.post('/:configId/:username/revoke', async function(req, res) {
   try {
@@ -103,6 +303,48 @@ router.post('/:configId/:username/revoke', async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/{configId}/{username}:
+ *   get:
+ *     summary: Get single VPN user
+ *     description: Get details of a specific VPN user
+ *     tags: [Users]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     parameters:
+ *       - in: path
+ *         name: configId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Marzban configuration ID
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: VPN username
+ *     responses:
+ *       200:
+ *         description: User details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MarzbanUser'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Failed to get user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Get single user
 router.get('/:configId/:username', async function(req, res) {
   try {
@@ -117,6 +359,68 @@ router.get('/:configId/:username', async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/{configId}/{username}:
+ *   put:
+ *     summary: Update VPN user
+ *     description: Update a VPN user's configuration
+ *     tags: [Users]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     parameters:
+ *       - in: path
+ *         name: configId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Marzban configuration ID
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: VPN username
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [active, disabled]
+ *               data_limit:
+ *                 type: number
+ *               expire:
+ *                 type: number
+ *               proxies:
+ *                 type: object
+ *               inbounds:
+ *                 type: object
+ *               note:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: User updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MarzbanUser'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Failed to update user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Update user
 router.put('/:configId/:username', async function(req, res) {
   console.log('UPDATE USER:', req.params.username);
@@ -155,6 +459,53 @@ router.put('/:configId/:username', async function(req, res) {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/{configId}/{username}:
+ *   delete:
+ *     summary: Delete VPN user
+ *     description: Delete a VPN user from the Marzban panel
+ *     tags: [Users]
+ *     security:
+ *       - OAuth2PasswordBearer: []
+ *     parameters:
+ *       - in: path
+ *         name: configId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Marzban configuration ID
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: VPN username
+ *     responses:
+ *       200:
+ *         description: User deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Failed to delete user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Delete user - FIXED TO IGNORE MARZBAN ERRORS
 router.delete('/:configId/:username', async function(req, res) {
   console.log('DELETE USER (Safe Mode):', req.params.username);

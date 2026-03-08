@@ -1,12 +1,7 @@
-#!/bin/bash
 
-# Stop script on error
 set -e
 
-# ==============================================================================
-#                               PRE-CHECKS & SETUP
-# ==============================================================================
-DOCKER_IMAGE="malindamalshan/marzban-dashboard:latest"
+DOCKER_IMAGE="malindamalshan/marzban-dashboard:dev"
 
 # Root Check
 if [ "$EUID" -ne 0 ]; then
@@ -14,80 +9,93 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-echo "=================================================================="
-echo -e "\033[1;90m===========================================================\033[0m"
-echo -e "\033[1;97m    __  __    _    ____  _____         __  __\033[0m"
-echo -e "\033[1;96m   |  \/  |  / \  |  _ \|__  /         \ \/ /\033[0m"
-echo -e "\033[1;36m   | |\/| | / _ \ | |_) | / /   _____   \  / \033[0m"
-echo -e "\033[0;36m   | |  | |/ ___ \|  _ < / /_  |_____|  /  \ \033[0m"
-echo -e "\033[0;34m   |_|  |_/_/   \_\_| \_\____|         /_/\_\\\ "
-echo ""
-echo -e "\033[1;37m              M A R Z - X\033[0m"
-echo -e "\033[1;37m         Advanced Marzban Installer\033[0m"
-echo -e "\033[1;37m     MARX-X Dashboard |  Server  | Integration\033[0m"
-echo -e "\033[1;90m===========================================================\033[0m"
+export DEBIAN_FRONTEND=noninteractive
 
-# Install Dependencies
 echo "[PACK] Updating system and installing dependencies..."
-apt update -y 
-apt install -y curl ca-certificates openssl jq ufw 
+apt-get update -qq -y 
+apt-get install -qq -y curl ca-certificates openssl jq ufw docker.io
 
-# Check/Install Docker
-if ! command -v docker &> /dev/null; then
-  echo "[DOCKER] Docker not found. Installing..."
-    curl -fsSL https://get.docker.com | sh
-    echo "[OK] Docker installed."
-else
-    echo "[OK] Docker is already installed."
+# 1. Create the CLI plugins directory
+mkdir -p /usr/libexec/docker/cli-plugins
+
+echo "[INSTALL] Downloading Docker Compose binary..."
+curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/libexec/docker/cli-plugins/docker-compose
+
+chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+
+
+if ! docker compose version > /dev/null 2>&1; then
+    echo "[X] Docker Compose plugin failed. Trying standalone install..."
+    
+    curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+    
 fi
 
-# ==============================================================================
-#                        PART 1: DASHBOARD CONFIGURATION
-# ==============================================================================
+
+systemctl start docker
+systemctl enable docker
+
+echo "[WAIT] Waiting 5s for Docker to stabilize..."
+sleep 5
+if ! command -v docker &> /dev/null; then
+    echo "[X] Docker installation failed."
+    exit 1
+else
+    echo "[OK] Docker is installed and ready."
+fi
+
 echo ""
 echo "--- [CONFIG] Dashboard Configuration ---"
-read -p "Enter your Domain (e.g., panel.example.com): " DOMAIN_NAME
-read -p "Enter Dashboard Public Port [6104]: " HTTPS_PORT
-HTTPS_PORT=${HTTPS_PORT:-6104}
+
+
+if [ -z "$DOMAIN_NAME" ]; then
+    read -p "Enter your Domain (e.g., panel.example.com): " DOMAIN_NAME
+fi
 
 if [ -z "$DOMAIN_NAME" ]; then
   echo "[X] Error: You must provide a domain name."
-    exit 1
+  exit 1
 fi
 
-echo ""
-read -p "Auto Optimize Interval (Minutes) [10]: " OPTIMIZE_INTERVAL
-OPTIMIZE_INTERVAL=${OPTIMIZE_INTERVAL:-10}
+HTTPS_PORT="${HTTPS_PORT:-6104}"
+if [ -z "$HTTPS_PORT" ] && [ -z "$CI" ]; then
+    read -p "Enter Dashboard Public Port [6104]: " INPUT_PORT
+    HTTPS_PORT="${INPUT_PORT:-6104}"
+fi
 
-echo ""
-echo "[SECURE] Setup Dashboard Admin Credentials"
-read -p "Admin Username [admin]: " ADMIN_USER
-ADMIN_USER=${ADMIN_USER:-admin}
+OPTIMIZE_INTERVAL="${OPTIMIZE_INTERVAL:-10}"
 
-read -p "Admin Password [admin123]: " ADMIN_PASSWORD
-ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+if [ -z "$ADMIN_USER" ]; then
+    echo ""
+    echo "[SECURE] Setup Dashboard Admin Credentials"
+    read -p "Admin Username [admin]: " INPUT_USER
+    ADMIN_USER="${INPUT_USER:-admin}"
+fi
 
-# Generate Secure Keys
+if [ -z "$ADMIN_PASSWORD" ]; then
+    read -p "Admin Password [admin123]: " INPUT_PASS
+    ADMIN_PASSWORD="${INPUT_PASS:-admin123}"
+fi
+
+echo "[INFO] Configuring for Domain: $DOMAIN_NAME"
+echo "[INFO] Dashboard Port: $HTTPS_PORT"
+
 JWT_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 MARZBAN_ADMIN_PASS=$(openssl rand -base64 12)
 
-# ==============================================================================
-#                        PART 2: SSL GENERATION
-# ==============================================================================
-# NOTE: We use /root/marzban-dashboard/certs/live so it matches your marz.sh CERT_BASE variable
 INSTALL_DIR="/root/marzban-dashboard"
 mkdir -p $INSTALL_DIR/data
 mkdir -p $INSTALL_DIR/certs
 cd $INSTALL_DIR
 
 echo ""
-# Check if certificate already exists in system path
+
 if [ -d "/etc/letsencrypt/live/$DOMAIN_NAME" ]; then
     echo "[SSL] Certificate already exists for $DOMAIN_NAME in /etc/letsencrypt/live/"
     echo "[SSL] Copying existing certificate to dashboard directory..."
     
-    # Copy existing certificates to dashboard certs directory
     cp -r /etc/letsencrypt/live/$DOMAIN_NAME $INSTALL_DIR/certs/live/
     cp -r /etc/letsencrypt/archive/$DOMAIN_NAME $INSTALL_DIR/certs/archive/ 2>/dev/null || true
     cp -r /etc/letsencrypt/renewal/$DOMAIN_NAME.conf $INSTALL_DIR/certs/renewal/ 2>/dev/null || true
@@ -101,14 +109,12 @@ elif [ -d "$INSTALL_DIR/certs/live/$DOMAIN_NAME" ]; then
 else
     echo "[SSL] No existing certificate found. Requesting new SSL Certificate for $DOMAIN_NAME..."
     
-    # Stop any existing processes on port 80 to allow Certbot to run
     docker compose down 2>/dev/null || true
     if command -v systemctl >/dev/null; then
         systemctl stop nginx 2>/dev/null || true
-        systemctl stop apache2 2>/dev/null || true
     fi
     
-    docker run -it --rm --name certbot \
+    docker run --rm --name certbot \
       -v "$(pwd)/certs:/etc/letsencrypt" \
       -v "$(pwd)/certs-data:/var/lib/letsencrypt" \
       -p 80:80 \
@@ -123,13 +129,9 @@ else
     echo "[OK] SSL Certificate obtained successfully."
 fi
 
-# ==============================================================================
-#                        PART 3: DASHBOARD INSTALLATION
-# ==============================================================================
 echo ""
 echo "[FILE] Creating Dashboard configuration files..."
 
-# 1. .env
 cat > .env <<EOF
 NODE_ENV=production
 PORT=5000
@@ -145,7 +147,7 @@ MARZBAN_ADMIN="MarzbanAdminx"
 MARZBAN_ADMIN_PASS="${MARZBAN_ADMIN_PASS}"
 EOF
 
-# 2. nginx.conf
+
 cat > nginx.conf <<EOF
 events { worker_connections 1024; }
 http {
@@ -161,12 +163,12 @@ http {
         root /usr/share/nginx/html;
         index index.html;
         
-        # Redirect /api-docs to /api-docs/ (with trailing slash)
+        # Redirect /api-docs to /api-docs/
         location = /api-docs {
             return 301 \$scheme://\$host:\$server_port/api-docs/;
         }
         
-        # API Documentation - Swagger UI (with trailing slash)
+        # API Documentation - Swagger UI
         location /api-docs/ {
             proxy_pass http://127.0.0.1:5000;
             proxy_http_version 1.1;
@@ -199,7 +201,7 @@ http {
             proxy_set_header X-Forwarded-Proto \$scheme;
         }
         
-        # Frontend - React App (serves from dist folder) - MUST BE LAST
+        # Frontend - React App
         location / { 
             try_files \$uri \$uri/ /index.html; 
         }
@@ -207,7 +209,6 @@ http {
 }
 EOF
 
-# 3. docker-compose.yml (HOST NETWORK MODE)
 cat > docker-compose.yml <<EOF
 version: '3.8'
 services:
@@ -220,7 +221,6 @@ services:
       - ./data:/app/data
       - ./certs:/etc/letsencrypt
       - ./nginx.conf:/etc/nginx/nginx.conf
-      - /var/lib/marzban:/var/lib/marzban
       - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - .env
@@ -231,11 +231,6 @@ docker compose pull
 docker compose up -d
 echo "[OK] Dashboard is running at https://$DOMAIN_NAME:$HTTPS_PORT"
 
-
-
-# ==============================================================================
-#                        PART 3.5: CLI TOOL SETUP (marz-x)
-# ==============================================================================
 echo ""
 echo "[INSTALL] Installing 'marz-x' CLI tool..."
 
@@ -739,314 +734,12 @@ EOF
 
 chmod +x /usr/local/bin/marz-x
 echo "[OK] 'marz-x' menu installed successfully!"
-
-# ==============================================================================
-#                        PART 4: MARZBAN SERVER EXECUTION
-# ==============================================================================
 echo ""
-echo "--------------------------------------------------------"
-read -p "[?] Do you need to install Marzban Server (VPN Panel)? [y/N]: " INSTALL_SERVER
-echo "--------------------------------------------------------"
-
-if [[ "$INSTALL_SERVER" =~ ^[Yy]$ ]]; then
-    echo "[START] Starting Marzban Server Installation (Running marz.sh content)..."
-    echo "==================================================================="
-
-    # !!! BEGIN MARZ.SH CONTENT (UNMODIFIED) !!!
-    
-    # ---------------- CONFIG ----------------
-    CERT_BASE="/root/marzban-dashboard/certs/live"
-    CERT_DEST="/var/lib/marzban/certs"
-    MARZBAN_ENV="/opt/marzban/.env"
-
-    # Custom template
-    TEMPLATE_DIR="/var/lib/marzban/templates/subscription"
-    TEMPLATE_FILE="$TEMPLATE_DIR/index.html"
-    TEMPLATE_RAW_URL="https://raw.githubusercontent.com/wmm-x/marz-x/main/template/index.html"
-
-    # Xray config
-    XRAY_CONFIG_FILE="/var/lib/marzban/xray_config.json"
-    XRAY_CONFIG_RAW_URL="https://raw.githubusercontent.com/wmm-x/marz-x/main/xray_config.json"
-    # ----------------------------------------
-
-    # Root check
-    if [ "$EUID" -ne 0 ]; then
-      echo "Please run as root (sudo)"
-      exit 1
-    fi
-   
-    echo "Detecting existing Let's Encrypt certificate in: $CERT_BASE"
-
-    if [ ! -d "$CERT_BASE" ]; then
-      echo "$CERT_BASE not found. You must have an existing Let's Encrypt certificate first."
-      exit 1
-    fi
-
-    # Pick the first valid LE cert directory (has fullchain.pem + privkey.pem)
-    CERT_DIR="$(find "$CERT_BASE" -mindepth 1 -maxdepth 1 -type d \
-      -exec test -f "{}/fullchain.pem" \; \
-      -exec test -f "{}/privkey.pem" \; \
-      -print | head -n 1)"
-
-    if [ -z "$CERT_DIR" ]; then
-      echo "No valid cert found in $CERT_BASE (missing fullchain.pem/privkey.pem)."
-      exit 1
-    fi
-
-    DOMAIN_NAME="$(basename "$CERT_DIR")"
-    echo "Using cert directory: $DOMAIN_NAME"
-
-    # ------------------------------------------------
-    # INSTALL MARZBAN (CTRL+C WON'T STOP THIS SCRIPT)
-    # ------------------------------------------------
-    echo "Installing Marzban..."
-    echo "If installer shows logs, you can press CTRL+C to stop logs; this script will continue."
-
-    trap 'echo; echo "CTRL+C detected. Stopping installer/log view and continuing script...";' INT
-    bash -c "$(curl -fsSL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban.sh)" @ install || true
-    trap - INT
-
-    # ------------------------------------------------
-    # COPY SSL CERTS TO MARZBAN
-    # ------------------------------------------------
-    echo "Copying SSL certs to: $CERT_DEST"
-
-    mkdir -p "$CERT_DEST"
-    cp "$CERT_DIR/fullchain.pem" "$CERT_DEST/fullchain.pem"
-    cp "$CERT_DIR/privkey.pem"   "$CERT_DEST/privkey.pem"
-
-    chmod 600 "$CERT_DEST/privkey.pem" || true
-    chown -R marzban:marzban "$CERT_DEST" 2>/dev/null || true
-
-    # ------------------------------------------------
-    # UPDATE /opt/marzban/.env (SSL + CUSTOM TEMPLATE + SUDO CREDS)
-    # ------------------------------------------------
-    echo "Updating Marzban env file: $MARZBAN_ENV"
-
-    if [ ! -f "$MARZBAN_ENV" ]; then
-      echo "Marzban env file not found: $MARZBAN_ENV"
-      echo "   (Marzban install may not have completed. Check /opt/marzban/)"
-      exit 1
-    fi
-
-    # Ensure file ends with newline
-    [ -n "$(tail -c1 "$MARZBAN_ENV")" ] && echo >> "$MARZBAN_ENV"
-
-    # ---------------- SSL: uncomment/set ----------------
-    sed -i \
-      's|^[[:space:]]*#\?[[:space:]]*UVICORN_SSL_CERTFILE.*|UVICORN_SSL_CERTFILE="/var/lib/marzban/certs/fullchain.pem"|' \
-      "$MARZBAN_ENV" || true
-
-    sed -i \
-      's|^[[:space:]]*#\?[[:space:]]*UVICORN_SSL_KEYFILE.*|UVICORN_SSL_KEYFILE="/var/lib/marzban/certs/privkey.pem"|' \
-      "$MARZBAN_ENV" || true
-
-    grep -q '^UVICORN_SSL_CERTFILE=' "$MARZBAN_ENV" || echo 'UVICORN_SSL_CERTFILE="/var/lib/marzban/certs/fullchain.pem"' >> "$MARZBAN_ENV"
-    grep -q '^UVICORN_SSL_KEYFILE='  "$MARZBAN_ENV" || echo 'UVICORN_SSL_KEYFILE="/var/lib/marzban/certs/privkey.pem"'  >> "$MARZBAN_ENV"
-
-    # ---------------- SUDO creds: ask user or generate ----------------
-    echo "Marzban Admin (SUDO) credentials"
-    read -p "Enter SUDO username (leave empty to auto-generate): " SUDO_USER_INPUT
-    read -s -p "Enter SUDO password (leave empty to auto-generate): " SUDO_PASS_INPUT
-    echo
-
-    gen_user() { echo "admin_$(openssl rand -hex 3)"; }
-    gen_pass() { openssl rand -base64 18 | tr -d '\n' | tr '+/' 'Aa'; }
-
-    SUDO_USERNAME="${SUDO_USER_INPUT:-$(gen_user)}"
-    SUDO_PASSWORD="${SUDO_PASS_INPUT:-$(gen_pass)}"
-
-    # Ensure newline
-    [ -n "$(tail -c1 "$MARZBAN_ENV")" ] && echo >> "$MARZBAN_ENV"
-
-    # Replace commented/uncommented SUDO lines; add if missing (idempotent)
-    if grep -qE '^[[:space:]]*#?[[:space:]]*SUDO_USERNAME' "$MARZBAN_ENV"; then
-      sed -i 's|^[[:space:]]*#\?[[:space:]]*SUDO_USERNAME.*|SUDO_USERNAME="'"$SUDO_USERNAME"'"|' "$MARZBAN_ENV" || true
-    else
-      echo 'SUDO_USERNAME="'"$SUDO_USERNAME"'"' >> "$MARZBAN_ENV"
-    fi
-
-    if grep -qE '^[[:space:]]*#?[[:space:]]*SUDO_PASSWORD' "$MARZBAN_ENV"; then
-      sed -i 's|^[[:space:]]*#\?[[:space:]]*SUDO_PASSWORD.*|SUDO_PASSWORD="'"$SUDO_PASSWORD"'"|' "$MARZBAN_ENV" || true
-    else
-      echo 'SUDO_PASSWORD="'"$SUDO_PASSWORD"'"' >> "$MARZBAN_ENV"
-    fi
-
-    # ------------------------------------------------
-    # CUSTOM TEMPLATE: create folder + download index.html
-    # ------------------------------------------------
-    echo "Installing custom subscription template..."
-
-    mkdir -p "$TEMPLATE_DIR"
-    curl -fsSL "$TEMPLATE_RAW_URL" -o "$TEMPLATE_FILE"
-
-    chown -R marzban:marzban /var/lib/marzban/templates 2>/dev/null || true
-    chmod -R 755 /var/lib/marzban/templates 2>/dev/null || true
-
-    # Add/Set env vars (bottom, with a blank line)
-    if grep -q '^CUSTOM_TEMPLATES_DIRECTORY=' "$MARZBAN_ENV"; then
-      sed -i 's|^CUSTOM_TEMPLATES_DIRECTORY=.*|CUSTOM_TEMPLATES_DIRECTORY="/var/lib/marzban/templates/"|' "$MARZBAN_ENV"
-    else
-      echo "" >> "$MARZBAN_ENV"
-      echo 'CUSTOM_TEMPLATES_DIRECTORY="/var/lib/marzban/templates/"' >> "$MARZBAN_ENV"
-    fi
-
-    if grep -q '^SUBSCRIPTION_PAGE_TEMPLATE=' "$MARZBAN_ENV"; then
-      sed -i 's|^SUBSCRIPTION_PAGE_TEMPLATE=.*|SUBSCRIPTION_PAGE_TEMPLATE="subscription/index.html"|' "$MARZBAN_ENV"
-    else
-      echo 'SUBSCRIPTION_PAGE_TEMPLATE="subscription/index.html"' >> "$MARZBAN_ENV"
-    fi
-
-    # ------------------------------------------------
-    # XRAY CONFIG: replace /var/lib/marzban/xray_config.json BEFORE restart
-    # ------------------------------------------------
-    read -r -p "Do you want to create the default Xray inbounds (VLESS: 443/80/8080 + VMESS: 8443)? [y/N]: " ANSWER
-
-    if [[ "$ANSWER" =~ ^[Yy]$ ]]; then
-      echo "Creating default Xray inbounds config..."
-    
-      mkdir -p "$(dirname "$XRAY_CONFIG_FILE")"
-    
-      TMP_XRAY="$(mktemp)"
-      curl -fsSL "$XRAY_CONFIG_RAW_URL" -o "$TMP_XRAY"
-    
-      # Validate JSON (won't allow broken config)
-      jq . "$TMP_XRAY" >/dev/null
-    
-      # Backup existing config if it exists
-      if [ -f "$XRAY_CONFIG_FILE" ]; then
-        cp "$XRAY_CONFIG_FILE" "${XRAY_CONFIG_FILE}.bak.$(date +%Y%m%d_%H%M%S)" || true
-      fi
-    
-      # Replace atomically
-      install -m 644 "$TMP_XRAY" "$XRAY_CONFIG_FILE"
-      rm -f "$TMP_XRAY"
-    
-      chown marzban:marzban "$XRAY_CONFIG_FILE" 2>/dev/null || true
-    else
-      echo "Skipped default inbound creation."
-    fi
-    
-
-    # ------------------------------------------------
-    # CERT RENEWAL SYNC HOOK (DOCKER-SAFE RESTART)
-    # ------------------------------------------------
-    echo "Installing Let's Encrypt renewal hook for Marzban cert sync..."
-
-    mkdir -p /etc/letsencrypt/renewal-hooks/post
-
-    cat > /etc/letsencrypt/renewal-hooks/post/20-marzban-cert-sync.sh <<'HOOK'
-#!/bin/bash
-DEST="/var/lib/marzban/certs"
-
-if [ -f "$RENEWED_LINEAGE/fullchain.pem" ] && [ -f "$RENEWED_LINEAGE/privkey.pem" ]; then
-  cp "$RENEWED_LINEAGE/fullchain.pem" "$DEST/fullchain.pem"
-  cp "$RENEWED_LINEAGE/privkey.pem" "$DEST/privkey.pem"
-  chmod 600 "$DEST/privkey.pem"
-  chown -R marzban:marzban "$DEST" 2>/dev/null || true
-
-  # Prefer Marzban CLI restart if available
-  if command -v marzban >/dev/null 2>&1; then
-    marzban restart >/dev/null 2>&1 || true
-  fi
-
-  # Fallback: docker compose restart
-  if [ -f /opt/marzban/docker-compose.yml ]; then
-    (cd /opt/marzban && docker compose restart >/dev/null 2>&1) || true
-  fi
-fi
-HOOK
-
-    chmod +x /etc/letsencrypt/renewal-hooks/post/20-marzban-cert-sync.sh
-
-    # ------------------------------------------------
-    # FIREWALL DISABLE (AS REQUESTED) - do BEFORE restart
-    # ------------------------------------------------
-    echo "Disabling firewall to avoid port blocking..."
-
-    if command -v ufw >/dev/null 2>&1; then
-      ufw disable >/dev/null 2>&1 || true
-      echo "UFW disabled"
-    else
-      echo "[INFO] UFW not installed"
-    fi
-
-    if systemctl list-unit-files 2>/dev/null | grep -q '^firewalld\.service'; then
-      systemctl stop firewalld >/dev/null 2>&1 || true
-      systemctl disable firewalld >/dev/null 2>&1 || true
-      echo "firewalld stopped and disabled"
-    fi
-
-    if command -v iptables >/dev/null 2>&1; then
-      iptables -F || true
-      iptables -X || true
-      iptables -t nat -F || true
-      iptables -t nat -X || true
-      iptables -t mangle -F || true
-      iptables -t mangle -X || true
-      iptables -P INPUT ACCEPT || true
-      iptables -P FORWARD ACCEPT || true
-      iptables -P OUTPUT ACCEPT || true
-      echo "iptables flushed + policies set to ACCEPT"
-    fi
-
-    # ------------------------------------------------
-    # RESTART MARZBAN (DOCKER)
-    # ------------------------------------------------
-    echo "Restarting Marzban..."
-
-    if command -v marzban >/dev/null 2>&1; then
-      marzban restart || true
-    fi
-
-    if [ -f /opt/marzban/docker-compose.yml ]; then
-      cd /opt/marzban
-      docker compose up -d
-      docker compose restart || true
-    fi
-
-  # ------------------------------------------------
-  # FINAL OUTPUT
-  # ------------------------------------------------
-  echo ""
-     echo "------------------------------------------------------------------"
-  echo "[OK] INSTALLATION COMPLETE!"
-  echo "------------------------------------------------------------------"
-  echo "🔹 1. MARZ-X DASHBOARD LOGIN"
-  echo "Access at: https://$DOMAIN_NAME:$HTTPS_PORT"
-  echo "Username: $ADMIN_USER"
-  echo "Password: $ADMIN_PASSWORD"
-  echo ""
-  echo "🔹 2. CONNECT MARZBAN TO DASHBOARD (REQUIRED)"
-  echo "   1. Log in to the Marz-X Dashboard above."
-  echo "   2. Go to 'Settings' > 'Add Server'."
-  echo "   3. Enter the following Marzban credentials:"
-  echo "      - URL:      https://$DOMAIN_NAME:8000"
-  echo "      - Username: $SUDO_USERNAME"
-  echo "      - Password: $SUDO_PASSWORD"
-  echo "------------------------------------------------------------------"
-  echo ""
-  echo "🔹 To manage the marz-x panel, type: marz-x"
-  echo "🔹 To manage the marzban server, type: marzban"
-
-    # !!! END MARZ.SH CONTENT !!!
-
-else
-    echo ""
-    echo "Skipping Marzban Server installation."
-    echo "------------------------------------------------------------------"
-    echo ""
-    echo "✅ MARZ-X DASHBOARD Installation Complete!"
-    echo "Access at: https://$DOMAIN_NAME:$HTTPS_PORT"
-    echo "Username: $ADMIN_USER"
-    echo "Password: $ADMIN_PASSWORD"
-    echo ""
-    echo "🔹 To manage the marz-x panel, type: marz-x"
-    echo "🔹 To manage the marzban server, type: marzban"
-    echo ""
-    echo "------------------------------------------------------------------"
-
-
-
-    
-fi
+echo "------------------------------------------------------------------"
+echo "✅ MARZ-X DASHBOARD SETUP FINISHED!"
+echo "   Dashboard: https://$DOMAIN_NAME:$HTTPS_PORT"
+echo "   Username:     $ADMIN_USER"
+echo "   Password:  $ADMIN_PASSWORD"
+echo ""
+echo "   Type 'marz-x' to open the management menu."
+echo "------------------------------------------------------------------"

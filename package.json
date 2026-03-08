@@ -21,7 +21,9 @@
     "fs": "^0.0.1-security",
     "jsonwebtoken": "^9.0.0",
     "multer": "^2.0.2",
-    "prisma": "^5.0.0"
+    "prisma": "^5.0.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@types/node": "^25.0.3"
