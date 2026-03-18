@@ -1,0 +1,71 @@
+name: Build & Deploy Dev
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: malindamalshan/marzban-dashboard:dev
+
+  # deploy to EC2
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH and Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Pass only the names of the env vars here
+          envs: DOMAIN_NAME,HTTPS_PORT,OPTIMIZE_INTERVAL,ADMIN_USER,ADMIN_PASSWORD
+          script: |
+            # 1. Export Variables (From GitHub Vars)
+            export DOMAIN_NAME="${{ vars.DOMAIN_NAME }}"
+            export HTTPS_PORT="${{ vars.HTTPS_PORT }}"
+            export OPTIMIZE_INTERVAL="${{ vars.OPTIMIZE_INTERVAL }}"
+            
+            # 2. Export Secrets (From GitHub Secrets)
+            export ADMIN_USER="${{ secrets.ADMIN_USER }}"
+            export ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}"
+
+            # 3. Prepare Server Directory
+            mkdir -p ~/marz-x-source
+            cd ~/marz-x-source
+            
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/wmm-x/marz-x.git .
+            fi
+            
+            git fetch origin main
+            git reset --hard origin/main
+
+            # 4. Robustness: Clear APT locks
+            sudo killall apt apt-get 2>/dev/null || true
+            sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock
+            
+            # 5. Run automation script
+            chmod +x automade.sh
+            sudo -E bash ./automade.sh
+
+            # 6. Cleanup
+            sudo docker image prune -f
