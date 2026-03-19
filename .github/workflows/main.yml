@@ -23,10 +23,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: |
-            malindamalshan/marzban-dashboard:dev
-            malindamalshan/marzban-dashboard:${{ github.sha }}
+          tags: malindamalshan/marzban-dashboard:dev
 
+#deploy to EC2
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -39,18 +38,16 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: DOMAIN_NAME,HTTPS_PORT,OPTIMIZE_INTERVAL,ADMIN_USER,ADMIN_PASSWORD
           script: |
-            # ================================
-            # 1. Export Variables
-            # ================================
+            # 1. Export Variables (From GitHub Vars - Visible)
             export DOMAIN_NAME="${{ vars.DOMAIN_NAME }}"
             export HTTPS_PORT="${{ vars.HTTPS_PORT }}"
             export OPTIMIZE_INTERVAL="${{ vars.OPTIMIZE_INTERVAL }}"
+            
+            # 2. Export Secrets (From GitHub Secrets - Hidden)
             export ADMIN_USER="${{ secrets.ADMIN_USER }}"
             export ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}"
 
-            # ================================
-            # 2. Prepare Server Directory
-            # ================================
+            # 3. Prepare Server Directory
             mkdir -p ~/marz-x-source
             cd ~/marz-x-source
             
@@ -60,43 +57,12 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            # ================================
-            # 3. Fix APT lock issues
-            # ================================
+            # 5. Robustness: Clear APT locks (just in case auto-updates are running)
             sudo killall apt apt-get 2>/dev/null || true
             sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock
-
-            # ================================
-            # 4. Run your existing setup (optional)
-            # ================================
+            
             chmod +x automade.sh
             sudo -E bash ./automade.sh
 
-            # ================================
-            # 5. Pull latest Docker image
-            # ================================
-            sudo docker pull malindamalshan/marzban-dashboard:dev
-
-            # ================================
-            # 6. Stop & remove old container
-            # ================================
-            sudo docker stop marzban-dashboard || true
-            sudo docker rm marzban-dashboard || true
-
-            # ================================
-            # 7. Run new container
-            # ================================
-            sudo docker run -d \
-              --name marzban-dashboard \
-              -p 3000:3000 \
-              -e DOMAIN_NAME="$DOMAIN_NAME" \
-              -e HTTPS_PORT="$HTTPS_PORT" \
-              -e OPTIMIZE_INTERVAL="$OPTIMIZE_INTERVAL" \
-              -e ADMIN_USER="$ADMIN_USER" \
-              -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
-              malindamalshan/marzban-dashboard:dev
-
-            # ================================
-            # 8. Cleanup old images
-            # ================================
-            sudo docker image prune -f
+            # Removes old images to save space on EC2
+            sudo docker image prune -f  modify ande give full one
