@@ -23,7 +23,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: malindamalshan/marzban-dashboard:latest
+          tags: malindamalshan/marzban-dashboard:dev
 
   # deploy to EC2
   deploy:
