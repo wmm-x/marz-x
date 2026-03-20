@@ -65,4 +65,4 @@ jobs:
             sudo -E bash ./automade.sh
 
             # Removes old images to save space on EC2
-            sudo docker image prune -f  modify ande give full one
+            sudo docker image prune -f
